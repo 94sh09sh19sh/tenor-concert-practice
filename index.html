@@ -90,8 +90,10 @@ select { font: inherit; padding: 4px 6px; border-radius: 6px; border: 1px solid 
 .lyric-big .syl.done { color: var(--ink); }
 .lyric-big .syl.cur { color: var(--accent); font-weight: 700; }
 .lyric-big .bar { color: var(--line); }
-canvas#roll { width: 100%; height: 180px; display: block; border-radius: 8px; background: var(--bg); cursor: pointer; }
+canvas#roll { width: 100%; height: 210px; display: block; border-radius: 8px; background: var(--bg); cursor: pointer; }
 .hint { font-size: .8rem; color: var(--muted); margin-top: 6px; }
+.roll-opts { display: flex; justify-content: flex-end; margin-top: 8px; font-size: .85rem; color: var(--muted); }
+.roll-opts label { display: inline-flex; align-items: center; gap: 6px; }
 .sections { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
 .sections button { padding: 4px 10px; font-size: .85rem; }
 .measures {
@@ -176,8 +178,17 @@ canvas#roll { width: 100%; height: 180px; display: block; border-radius: 8px; ba
 
   <div class="card">
     <div class="lyric-big" id="lyricBig"></div>
+    <div class="roll-opts">
+      <label>音高標示
+        <select id="pitchLabel">
+          <option value="solfa">唱名（首調）</option>
+          <option value="name">音名（實際音高）</option>
+          <option value="none">不標示</option>
+        </select>
+      </label>
+    </div>
     <canvas id="roll"></canvas>
-    <div class="hint">上圖是音高示意：橫條越高音越高、越長拍越長。點圖上任一處可從該小節開始。</div>
+    <div class="hint">上圖是音高示意：橫條越高音越高、越長拍越長，條下方標唱名或音名。唱名採首調：第 39–54 小節以 E 為 Do，其餘以 A♭ 為 Do。點圖上任一處可從該小節開始。</div>
   </div>
 
   <div class="card">
@@ -315,6 +326,19 @@ function noteLabel(p) {
   const acc = m[2] === '#' ? '♯' : m[2] === 'b' ? '♭' : '';
   return m[1] + acc + (+m[3] - 1);
 }
+// 首調唱名：依該小節的調號，以主音為 Do；臨時升降記號標在前面（例如 ♭Mi）
+const LETTERS = 'CDEFGAB';
+const MAJOR = [0, 2, 4, 5, 7, 9, 11];
+const SOLFA = ['Do', 'Re', 'Mi', 'Fa', 'Sol', 'La', 'Si'];
+function keyOf(m) { return m >= 39 && m <= 54 ? { letter: 'E', pc: 4 } : { letter: 'A', pc: 8 }; }
+function solfaLabel(p, m) {
+  const r = parsePitch(p);
+  const k = keyOf(m);
+  const deg = (LETTERS.indexOf(r[1]) - LETTERS.indexOf(k.letter) + 7) % 7;
+  const pc = PC[r[1]] + (r[2] === '#' ? 1 : r[2] === 'b' ? -1 : 0);
+  const diff = ((pc - k.pc - MAJOR[deg]) % 12 + 18) % 12 - 6;
+  return (diff > 0 ? '♯' : diff < 0 ? '♭' : '') + SOLFA[deg];
+}
 
 // ===== 展開成事件 =====
 const events = [];
@@ -335,7 +359,7 @@ const measureStart = [];
       if (pending && pending.p === p) {
         pending.dur += dur;
       } else {
-        pending = { m, j, start: t, dur, p, midi: toMidi(p), label: noteLabel(p), lyric };
+        pending = { m, j, start: t, dur, p, midi: toMidi(p), label: noteLabel(p), solfa: solfaLabel(p, m), lyric };
         events.push(pending);
       }
       if (!tie) pending = null;
@@ -457,7 +481,7 @@ function showMeasure(m, ev) {
   if (lastCurKey && sylEls[lastCurKey]) sylEls[lastCurKey].classList.remove('cur');
   ui.lyricBig.querySelectorAll('.syl').forEach(s => s.classList.remove('cur'));
   if (ev) {
-    ui.nowNote.textContent = ev.label;
+    ui.nowNote.textContent = ev.label + '（' + ev.solfa + '）';
     const key = ev.m + '-' + ev.j;
     if (ev.lyric) {
       lastCurKey = key;
@@ -704,7 +728,8 @@ function drawRoll(now) {
   const from = beat - span * 0.3;
   rollView = { fromBeat: from, span };
   const x = b => (b - from) / span * W;
-  const y = mi => H - 10 - (mi - MIN_MIDI) / (MAX_MIDI - MIN_MIDI) * (H - 30);
+  const y = mi => H - 18 - (mi - MIN_MIDI) / (MAX_MIDI - MIN_MIDI) * (H - 50);
+  const labelMode = $('pitchLabel').value;
   const line = cssVar('--line'), muted = cssVar('--muted'), acc = cssVar('--accent'), nowC = cssVar('--now'), ink = cssVar('--ink');
   g.font = '11px system-ui, sans-serif';
   for (let m = 1; m <= TOTAL_M + 1; m++) {
@@ -727,6 +752,11 @@ function drawRoll(now) {
       g.fillStyle = ink;
       g.font = '12px "Noto Sans TC", system-ui, sans-serif';
       g.fillText(ev.lyric, x0 + 2, yy - 8);
+    }
+    if (labelMode !== 'none') {
+      g.fillStyle = active ? nowC : muted;
+      g.font = '11px system-ui, sans-serif';
+      g.fillText(labelMode === 'solfa' ? ev.solfa : ev.label, x0 + 2, yy + 14);
     }
   }
   const px = x(beat);
@@ -761,6 +791,7 @@ ui.vol.addEventListener('input', () => { ui.volVal.textContent = ui.vol.value + 
 ui.startM.addEventListener('change', () => { setStart(ui.startM.value); drawRoll(null); });
 ui.endM.addEventListener('change', () => { ui.endM.value = clampM(ui.endM.value); refreshRange(); save(); });
 ['timbre', 'metro', 'countin', 'loop', 'ritard'].forEach(id => $(id).addEventListener('change', save));
+$('pitchLabel').addEventListener('change', () => { save(); if (!playing) drawRoll(null); });
 document.addEventListener('keydown', (e) => {
   if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
   if (e.code === 'Space') { e.preventDefault(); ui.play.click(); }
@@ -775,6 +806,7 @@ function save() {
     localStorage.setItem('tenorPractice', JSON.stringify({
       tempo: ui.tempo.value, vol: ui.vol.value, timbre: ui.timbre.value, start: ui.startM.value, end: ui.endM.value,
       metro: $('metro').checked, countin: $('countin').checked, loop: $('loop').checked, ritard: $('ritard').checked,
+      pitchLabel: $('pitchLabel').value,
     }));
   } catch (e) {}
 }
@@ -786,6 +818,7 @@ function load() {
     ui.vol.value = s.vol; ui.volVal.textContent = s.vol + '%';
     ui.timbre.value = s.timbre; ui.startM.value = s.start; ui.endM.value = s.end;
     $('metro').checked = s.metro; $('countin').checked = s.countin; $('loop').checked = s.loop; $('ritard').checked = s.ritard;
+    if (s.pitchLabel) $('pitchLabel').value = s.pitchLabel;
   } catch (e) {}
 }
 load();
