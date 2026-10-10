@@ -1,0 +1,797 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tenor 聲部練習</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8E%B5%3C/text%3E%3C/svg%3E">
+<meta name="description" content="《我只想跟你一起去聽音樂會》Tenor 聲部示範播放器：可調速度、從任一小節開始、顯示歌詞。">
+<style>
+:root {
+  --bg: #f6f4ef;
+  --surface: #ffffff;
+  --ink: #1d1b18;
+  --muted: #6b665e;
+  --line: #e2ddd3;
+  --accent: #b4532a;
+  --accent-soft: #f3e2d7;
+  --now: #2f6f5e;
+  --now-soft: #dcefe8;
+  --rest: #c9c3b8;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #161513;
+    --surface: #201f1c;
+    --ink: #ece8e1;
+    --muted: #a29c92;
+    --line: #34312c;
+    --accent: #e08a5f;
+    --accent-soft: #3b2a20;
+    --now: #6cc4a9;
+    --now-soft: #1f3a32;
+    --rest: #4a463f;
+  }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", system-ui, sans-serif;
+  line-height: 1.5;
+}
+.wrap { max-width: 980px; margin: 0 auto; padding: 20px 16px 60px; }
+h1 { font-size: 1.35rem; margin: 0 0 2px; letter-spacing: .02em; }
+.sub { color: var(--muted); font-size: .9rem; margin: 0 0 18px; }
+.card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin-bottom: 14px;
+}
+.transport { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+button {
+  font: inherit;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+  border-radius: 8px;
+  padding: 8px 14px;
+  cursor: pointer;
+}
+button:hover { border-color: var(--muted); }
+button.primary { background: var(--accent); border-color: var(--accent); color: #fff; min-width: 96px; font-weight: 600; }
+.now {
+  margin-left: auto;
+  display: flex; gap: 14px; align-items: baseline;
+  font-variant-numeric: tabular-nums;
+}
+.now .m { color: var(--muted); font-size: .9rem; }
+.now .note { font-size: 1.6rem; font-weight: 700; color: var(--now); min-width: 3.2em; text-align: right; }
+.grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px 20px; margin-top: 14px; }
+label.row { display: flex; flex-direction: column; gap: 4px; font-size: .9rem; color: var(--muted); }
+label.row .val { color: var(--ink); font-weight: 600; }
+input[type=range] { width: 100%; accent-color: var(--accent); }
+input[type=number] {
+  font: inherit; width: 5em; padding: 4px 6px;
+  border: 1px solid var(--line); border-radius: 6px;
+  background: var(--surface); color: var(--ink);
+}
+.checks { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: .9rem; }
+.checks label { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+select { font: inherit; padding: 4px 6px; border-radius: 6px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); }
+.lyric-big {
+  font-size: 1.5rem; min-height: 2.4em; line-height: 1.6;
+  display: flex; flex-wrap: wrap; gap: 0 .3em; align-items: center;
+}
+.lyric-big .syl { color: var(--muted); transition: color .08s; }
+.lyric-big .syl.done { color: var(--ink); }
+.lyric-big .syl.cur { color: var(--accent); font-weight: 700; }
+.lyric-big .bar { color: var(--line); }
+canvas#roll { width: 100%; height: 180px; display: block; border-radius: 8px; background: var(--bg); cursor: pointer; }
+.hint { font-size: .8rem; color: var(--muted); margin-top: 6px; }
+.sections { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.sections button { padding: 4px 10px; font-size: .85rem; }
+.measures {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 6px;
+}
+.ms {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 6px 8px;
+  cursor: pointer;
+  min-height: 58px;
+  background: var(--surface);
+  position: relative;
+}
+.ms:hover { border-color: var(--muted); }
+.ms .no { font-size: .72rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.ms .no b { color: var(--accent); margin-left: 4px; }
+.ms .ly { font-size: .95rem; word-break: break-word; }
+.ms .ly .r { color: var(--rest); }
+.ms .ly .cur { color: var(--accent); font-weight: 700; }
+.ms.start { box-shadow: inset 0 0 0 2px var(--accent); }
+.ms.inloop { background: var(--accent-soft); }
+.ms.playing { background: var(--now-soft); border-color: var(--now); }
+.ms .flag { position: absolute; top: 5px; right: 7px; font-size: .7rem; color: var(--accent); }
+.notes h2 { font-size: 1rem; margin: 0 0 6px; }
+.notes ul { margin: 6px 0 0; padding-left: 1.2em; font-size: .9rem; }
+.notes li { margin: 3px 0; }
+.notes p { font-size: .9rem; margin: 6px 0; }
+.legend { font-size: .8rem; color: var(--muted); margin-top: 8px; }
+.legend span { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin: 0 4px 0 10px; vertical-align: -1px; }
+@media (max-width: 560px) {
+  .now { margin-left: 0; width: 100%; justify-content: space-between; }
+  .lyric-big { font-size: 1.25rem; }
+  .measures { grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>我只想跟你一起去聽音樂會｜Tenor 練習</h1>
+  <p class="sub">只播 Tenor 聲部，播放實際音高（比譜面低八度）。3/2 拍，共 86 小節。</p>
+
+  <div class="card">
+    <div class="transport">
+      <button id="play" class="primary">▶ 播放</button>
+      <button id="stop">■ 停止</button>
+      <button id="prev" title="前一小節">◀ 小節</button>
+      <button id="next" title="下一小節">小節 ▶</button>
+      <div class="now">
+        <span class="m" id="nowM">第 1 小節</span>
+        <span class="note" id="nowNote">–</span>
+      </div>
+    </div>
+
+    <div class="grid2">
+      <label class="row">速度（二分音符／分鐘）<span class="val" id="tempoVal">70</span>
+        <input type="range" id="tempo" min="30" max="100" step="1" value="70">
+      </label>
+      <label class="row">從第幾小節開始
+        <span><input type="number" id="startM" min="1" max="86" value="1"> 到 <input type="number" id="endM" min="1" max="86" value="86"> 小節</span>
+      </label>
+      <label class="row">音色
+        <select id="timbre">
+          <option value="voice">人聲（oo）</option>
+          <option value="piano">鋼琴</option>
+          <option value="pure">純音</option>
+        </select>
+      </label>
+      <label class="row">音量<span class="val" id="volVal">80%</span>
+        <input type="range" id="vol" min="0" max="100" value="80">
+      </label>
+    </div>
+    <div class="checks" style="margin-top:12px">
+      <label><input type="checkbox" id="metro" checked> 節拍器（每個二分音符一拍）</label>
+      <label><input type="checkbox" id="countin" checked> 預備拍一小節</label>
+      <label><input type="checkbox" id="loop"> 重複播放所選範圍</label>
+      <label><input type="checkbox" id="ritard" checked> 依譜面漸慢（ritard.）</label>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="lyric-big" id="lyricBig"></div>
+    <canvas id="roll"></canvas>
+    <div class="hint">上圖是音高示意：橫條越高音越高、越長拍越長。點圖上任一處可從該小節開始。</div>
+  </div>
+
+  <div class="card">
+    <div class="sections" id="sections"></div>
+    <div class="measures" id="measures"></div>
+    <div class="legend">點一下小節＝從那裡開始播放<span style="background:var(--accent-soft)"></span>播放範圍<span style="background:var(--now-soft)"></span>正在播放</div>
+  </div>
+
+  <div class="card notes">
+    <h2>使用說明與注意事項</h2>
+    <p>這份示範是從樂譜照片逐小節人工聽寫而成，<strong>不是官方音檔</strong>。手機照片解析度有限，難免有看錯的音，練習前請跟聲部長或鋼琴對一次。下列小節特別沒把握（小節格右上角標「?」）：</p>
+    <ul>
+      <li>第 5、61 小節「和<strong>你</strong>」：「你」的長音判讀為 C（也可能是 B♭）。</li>
+      <li>第 21、23 小節：開頭長音有降記號，判讀為 C♭；同小節後面的 C 依記譜規則也算 C♭，請確認。</li>
+      <li>第 51–53 小節（mm/oo 長音）：判讀為 E。</li>
+      <li>第 56 小節「擁抱」：判讀為 B♭–C。</li>
+      <li>第 77–78 小節（Him-mel du, dar-ein ich）：個別音高較難辨認。</li>
+    </ul>
+    <p>第 39–54 小節為 E 大調（4 個升記號），其餘為 A♭ 大調（4 個降記號）。漸慢只是近似處理，實際以指揮為準。鍵盤操作：空白鍵播放／暫停，左右方向鍵切換小節。</p>
+  </div>
+</div>
+
+<script>
+// ===== 樂譜資料（譜面記譜音高，Tenor 實際音高低八度）=====
+// 每個音：[音高, 拍數(四分音符為 1), 歌詞]；音高結尾加 ~ 表示與下一個音連結；'r' 為休止。
+const T3 = 2 / 3;
+const SCORE = [
+  /* 1 */ [['r', 6]],
+  /* 2 */ [['r', 6]],
+  /* 3 */ [['r', 6]],
+  /* 4 */ [['r', 2], ['r', 1], ['Eb4', 1, '我'], ['Eb4', 1, '只'], ['Eb4', 1, '想']],
+  /* 5 */ [['Db5', 1, '和'], ['C5~', 2, '你'], ['C5', 3, '']],
+  /* 6 */ [['r', 1], ['C5', 1, '一'], ['Bb4', 1, '起'], ['C5', 1, '去'], ['Eb5', 1.5, '聽'], ['C5', .5, '音']],
+  /* 7 */ [['C5', 1, '樂'], ['Ab4~', 2, '會'], ['Ab4', 3, '']],
+  /* 8 */ [['r', 2], ['r', 1], ['F4', 1, '戴'], ['G4', 1, '上'], ['Ab4', 1, '我']],
+  /* 9 */ [['C5', 1, '親'], ['Bb4~', 2, '手'], ['Bb4', 3, '']],
+  /* 10 */ [['r', 2], ['Ab4', 1, '親'], ['F4', 1, '手'], ['G4', 1, '織'], ['Ab4', 1, '的']],
+  /* 11 */ [['r', 1], ['C5', 4, '圍'], ['Db5', 1, '']],
+  /* 12 */ [['Bb4', 2, '巾'], ['r', 1], ['Eb4', 1, '不'], ['Eb4', 1, '能'], ['Eb4', 1, '像']],
+  /* 13 */ [['Db5', 1, '魔'], ['C5~', 2, '毯'], ['C5', 3, '']],
+  /* 14 */ [['r', 2], ['Bb4', 1, '帶'], ['C5', 1, '你'], ['Eb5', T3, '飛'], ['Eb5', T3, '向'], ['C5', T3, '天']],
+  /* 15 */ [['Ab4', 6, '空']],
+  /* 16 */ [['r', 2], ['r', 1], ['F4', .5, '但'], ['F4', .5, '我'], ['G4', 1, '織'], ['Ab4', 1, '了']],
+  /* 17 */ [['C5', 1, '一'], ['Bb4', 2, '道'], ['C5', 1, '一'], ['Bb4', 1, '道'], ['C5', 1, '彩']],
+  /* 18 */ [['Bb4', 2, '虹'], ['Db5', 3, '在'], ['Bb4', 1, '上']],
+  /* 19 */ [['C5', 6, '頭']],
+  /* 20 */ [['r', 2], ['r', 1], ['Ab4', 1, '我'], ['Ab4', 1, '會'], ['Ab4', 1, '記']],
+  /* 21 */ [['Cb5', 3, '得'], ['Cb5', .5, '替'], ['Cb5', .5, '你'], ['Bb4', 1, '帶'], ['Bb4', 1, '上']],
+  /* 22 */ [['C5', 1.5, '一'], ['Ab4', .5, '支'], ['Ab4', 1, '傘'], ['r', 1], ['Ab4', T3, '為'], ['Ab4', T3, '你'], ['Ab4', T3, '擋']],
+  /* 23 */ [['Cb5', 2, '開'], ['Cb5', 1, '他'], ['Cb5', 1, '們'], ['Cb5', 1, '口'], ['Cb5', 1, '中']],
+  /* 24 */ [['r', 2], ['Bb4', 1, '名'], ['Bb4', 1, '為'], ['Bb4', 1, '愛'], ['Bb4', 1, '的']],
+  /* 25 */ [['r', 1], ['C5~', 1, '黑'], ['C5', 4, '']],
+  /* 26 */ [['Bb4', 4, '雨'], ['r', 2]],
+  /* 27 */ [['C5', 4, 'Du'], ['Bb4', 1, 'du'], ['Db5', 1, 'mein']],
+  /* 28 */ [['C5', 2, 'Herz,'], ['r', 2], ['C5', 2, 'du']],
+  /* 29 */ [['F5~', 2, "Wonn',"], ['F5', 1, ''], ['Eb5', 1, 'o'], ['Db5', 1, 'du'], ['C5', 1, 'mein']],
+  /* 30 */ [['Bb4', 2, 'Schmerz'], ['r', 2], ['Eb5', 1, 'du'], ['Db5', 1, '']],
+  /* 31 */ [['C5', 1, 'mei'], ['Bb4', 1, ''], ['Ab4', 2, 'ne'], ['G4', 2, 'Welt,']],
+  /* 32 */ [['Ab4', 2, 'le'], ['C5', 2, ''], ['Ab4', 2, 'be']],
+  /* 33 */ [['Db5', 2, 'Him'], ['Db5', 2, 'mel'], ['C5', 2, 'ich']],
+  /* 34 */ [['C5', 2, 'schwe'], ['C5', 2, 'be'], ['Ab4', 2, 'mein']],
+  /* 35 */ [['Bb4', 3, 'Grab'], ['r', 1], ['Bb4', 1, 'hin'], ['G4', 1, '']],
+  /* 36 */ [['Eb4', 2, 'ab'], ['Ab4', 1, 'ich'], ['Gb4', 1, 'e'], ['F4', 1, ''], ['Fb4', 1, 'wig']],
+  /* 37 */ [['Eb4', 1, 'mei'], ['Ab4', 1, ''], ['C5', 2, ''], ['Bb4', 1, 'ne'], ['Db5', 1, '']],
+  /* 38 */ [['C5', 4, 'gab'], ['r', 2]],
+  /* 39 */ [['r', 6]],
+  /* 40 */ [['r', 6]],
+  /* 41 */ [['r', 6]],
+  /* 42 */ [['r', 6]],
+  /* 43 */ [['r', 2], ['B4', 1, '好'], ['B4', 1, '好'], ['A4', 1, '聽'], ['B4', 1, '一']],
+  /* 44 */ [['C#5', 4, '場'], ['r', 1], ['B4', 1, '一']],
+  /* 45 */ [['A4', 3, '場'], ['A4', 1, '音'], ['A4~', 1.5, '樂'], ['A4', .5, '']],
+  /* 46 */ [['B4', 2, '會'], ['r', 2], ['r', 2]],
+  /* 47 */ [['r', 6]],
+  /* 48 */ [['r', 6]],
+  /* 49 */ [['r', 6]],
+  /* 50 */ [['r', 6]],
+  /* 51 */ [['E5', 6, 'mm/oo']],
+  /* 52 */ [['E5', 6, 'mm/oo']],
+  /* 53 */ [['E5', 6, 'mm/oo']],
+  /* 54 */ [['r', 2], ['r', 1], ['C#5', 1, '我'], ['C#5', 1, '會'], ['C#5', 1, '給']],
+  /* 55 */ [['Db5', 2, '你'], ['Db5', 1, '一'], ['Db5', 1, '個'], ['Db5', T3, '小'], ['Db5', T3, '小'], ['Eb5', T3, '的']],
+  /* 56 */ [['Bb4', 1, '擁'], ['C5', 2, '抱'], ['r', 1], ['C5', 1.5, '比'], ['C5', .5, '你']],
+  /* 57 */ [['C5', 1, '聽'], ['F4', .5, '過'], ['F4', .5, '的'], ['F4', 1, '所'], ['F4', 1, '有'], ['G4', 1, '情'], ['Ab4', 1, '歌']],
+  /* 58 */ [['r', 2], ['Ab4', 1, '都'], ['F4', 1, '要'], ['G4', 1, '簡'], ['Ab4', 1, '單']],
+  /* 59 */ [['r', 1], ['Ab4~', 1, '溫'], ['Ab4', 4, '']],
+  /* 60 */ [['G4', 2, '暖'], ['r', 1], ['Eb4', 1, '我'], ['Eb4', 1, '只'], ['Eb4', 1, '想']],
+  /* 61 */ [['Db5', 1, '和'], ['C5~', 2, '你'], ['C5', 3, '']],
+  /* 62 */ [['r', 1], ['C5', 1, '一'], ['Bb4', 1, '起'], ['C5', 1, '去'], ['Eb5', 1.5, '聽'], ['C5', .5, '音']],
+  /* 63 */ [['C5', 1, '樂'], ['Ab4~', 2, '會'], ['Ab4', 3, '']],
+  /* 64 */ [['r', 2], ['r', 1], ['F4', 1, '戴'], ['G4', 1, '上'], ['Ab4', 1, '我']],
+  /* 65 */ [['C5', 1, '親'], ['Bb4~', 2, '手'], ['Bb4', 3, '']],
+  /* 66 */ [['r', 2], ['Ab4', 1, '親'], ['F4', 1, '手'], ['G4', 1, '織'], ['Ab4', 1, '的']],
+  /* 67 */ [['r', 1], ['C5', 4, '圍'], ['Db5', 1, '']],
+  /* 68 */ [['Bb4', 2, '巾'], ['r', 1], ['Eb4', 1, '不'], ['Eb4', 1, '能'], ['Eb4', 1, '像']],
+  /* 69 */ [['Db5', 1, '魔'], ['C5~', 2, '毯'], ['C5', 3, '']],
+  /* 70 */ [['r', 2], ['Bb4', 1, '帶'], ['C5', 1, '你'], ['Eb5', T3, '飛'], ['Eb5', T3, '向'], ['C5', T3, '天']],
+  /* 71 */ [['Ab4', 6, '空']],
+  /* 72 */ [['r', 2], ['r', 1], ['F4', .5, '但'], ['F4', .5, '我'], ['G4', 1, '織'], ['Ab4', 1, '了']],
+  /* 73 */ [['r', 1], ['F4', 1, '織'], ['G4', 1, '了'], ['Ab4', 1, '一'], ['Bb4', 1, '道'], ['C5', 1, '彩']],
+  /* 74 */ [['Bb4', 2, '虹'], ['Db5', 2, '在'], ['Bb4', 1, ''], ['Bb4', 1, '上']],
+  /* 75 */ [['C5', 3, '頭'], ['r', 1], ['r', 2]],
+  /* 76 */ [['r', 1], ['Ab4', 1, 'mei'], ['G4', 1, 'ne'], ['Ab4', 1, 'Welt,'], ['Bb4', 1, 'in'], ['Db5', .5, 'der'], ['Db5', .5, 'ich']],
+  /* 77 */ [['Bb4', 2, 'le'], ['C5', 2, 'be,'], ['C5', 1.5, 'Him'], ['Ab4', .5, 'mel']],
+  /* 78 */ [['Bb4', 1, 'du,'], ['A4', 1, ''], ['Bb4', 1, ''], ['Bb4', 1, 'dar'], ['C5', 1, 'ein'], ['C5', 1, 'ich']],
+  /* 79 */ [['Bb4', 1, 'schwe'], ['C5', 1, ''], ['Db5', 1, 'be,'], ['C5', 1, 'mein'], ['Db5', 1, 'gu'], ['Bb4', 1, 'ter']],
+  /* 80 */ [['C5', 1, 'Geist,'], ['Cb5', 1, 'mein'], ['Bb4', 2, 'bess'], ['Eb5', 2, 'res']],
+  /* 81 */ [['C5', 4, 'Ich!'], ['r', 2]],
+  /* 82 */ [['Ab4', 2, 'mm/oo'], ['G4', 1, 'mm/oo'], ['Ab4', 1, ''], ['C5', 1.5, ''], ['Bb4', .5, '']],
+  /* 83 */ [['Ab4', 6, 'mm/oo']],
+  /* 84 */ [['Ab4', 2, 'mm/oo'], ['G4', 1, 'mm/oo'], ['Ab4', 1, ''], ['Eb5', 1.5, ''], ['Db5', .5, '']],
+  /* 85 */ [['C5', 6, 'mm/oo']],
+  /* 86 */ [['r', 6]],
+];
+const SECTIONS = [['開頭', 1], ['B', 39], ['C', 55], ['D', 61], ['E', 76], ['F', 82]];
+// 漸慢區段：[起, 迄]，區段內逐小節放慢到原速的 80%
+const RITARDS = [[37, 38], [54, 54], [79, 81], [82, 83], [84, 85]];
+const UNSURE = [5, 21, 23, 51, 52, 53, 56, 61, 77, 78];
+const BEATS_PER_BAR = 6; // 以四分音符計
+
+// ===== 音高 =====
+const PC = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
+function parsePitch(p) {
+  const m = /^([A-G])(#|b)?(\d)$/.exec(p);
+  if (!m) throw new Error('音高格式錯誤：' + p);
+  return m;
+}
+function toMidi(p) {
+  const m = parsePitch(p);
+  const acc = m[2] === '#' ? 1 : m[2] === 'b' ? -1 : 0;
+  return (+m[3] + 1) * 12 + PC[m[1]] + acc - 12; // 低八度＝實際音高
+}
+function noteLabel(p) {
+  const m = parsePitch(p);
+  const acc = m[2] === '#' ? '♯' : m[2] === 'b' ? '♭' : '';
+  return m[1] + acc + (+m[3] - 1);
+}
+
+// ===== 展開成事件 =====
+const events = [];
+const measureStart = [];
+(function build() {
+  let t = 0;
+  let pending = null;
+  SCORE.forEach((bar, i) => {
+    const m = i + 1;
+    measureStart[m] = t;
+    let sum = 0;
+    bar.forEach((n, j) => {
+      const [raw, dur, lyric = ''] = n;
+      sum += dur;
+      if (raw === 'r') { t += dur; return; }
+      const tie = raw.endsWith('~');
+      const p = tie ? raw.slice(0, -1) : raw;
+      if (pending && pending.p === p) {
+        pending.dur += dur;
+      } else {
+        pending = { m, j, start: t, dur, p, midi: toMidi(p), label: noteLabel(p), lyric };
+        events.push(pending);
+      }
+      if (!tie) pending = null;
+      t += dur;
+    });
+    if (Math.abs(sum - BEATS_PER_BAR) > 1e-6) console.warn('第 ' + m + ' 小節拍數不符：' + sum);
+  });
+  measureStart[SCORE.length + 1] = t;
+})();
+const TOTAL_M = SCORE.length;
+
+function $(id) { return document.getElementById(id); }
+
+function ritardFactor(m) {
+  if (!$('ritard').checked) return 1;
+  for (const [a, b] of RITARDS) {
+    if (m >= a && m <= b) {
+      const n = b - a + 1, k = m - a + 1;
+      return 1 - 0.2 * k / n;
+    }
+  }
+  return 1;
+}
+
+// ===== DOM =====
+const ui = {
+  play: $('play'), stop: $('stop'), prev: $('prev'), next: $('next'),
+  tempo: $('tempo'), tempoVal: $('tempoVal'), startM: $('startM'), endM: $('endM'),
+  vol: $('vol'), volVal: $('volVal'), timbre: $('timbre'),
+  nowM: $('nowM'), nowNote: $('nowNote'), lyricBig: $('lyricBig'),
+  measures: $('measures'), sections: $('sections'), roll: $('roll'),
+};
+
+const msEls = [];
+const sylEls = {}; // "小節-序號" -> span
+SCORE.forEach((bar, i) => {
+  const m = i + 1;
+  const el = document.createElement('div');
+  el.className = 'ms';
+  const sec = SECTIONS.find(s => s[1] === m && s[0].length === 1);
+  el.innerHTML = '<div class="no">' + m + (sec ? '<b>' + sec[0] + '</b>' : '') + '</div><div class="ly"></div>';
+  if (UNSURE.includes(m)) {
+    const f = document.createElement('span'); f.className = 'flag'; f.textContent = '?'; f.title = '這小節判讀較沒把握'; el.appendChild(f);
+  }
+  const ly = el.querySelector('.ly');
+  let any = false;
+  bar.forEach((n, j) => {
+    const lyric = n[2];
+    if (n[0] !== 'r' && lyric) {
+      const s = document.createElement('span');
+      s.textContent = lyric + (/[A-Za-z,!'/]$/.test(lyric) ? ' ' : '');
+      ly.appendChild(s);
+      sylEls[m + '-' + j] = s;
+      any = true;
+    }
+  });
+  if (!any) {
+    const allRest = bar.every(n => n[0] === 'r');
+    ly.innerHTML = allRest ? '<span class="r">休息</span>' : '<span class="r">（延長）</span>';
+  }
+  el.addEventListener('click', () => { setStart(m); startPlayback(); });
+  ui.measures.appendChild(el);
+  msEls[m] = el;
+});
+
+SECTIONS.forEach(([name, m]) => {
+  const b = document.createElement('button');
+  b.textContent = (name.length === 1 ? '段落 ' + name : name) + '（' + m + '）';
+  b.addEventListener('click', () => { setStart(m); startPlayback(); });
+  ui.sections.appendChild(b);
+});
+
+function clampM(v) { return Math.max(1, Math.min(TOTAL_M, Math.round(+v || 1))); }
+function setStart(m) {
+  m = clampM(m);
+  ui.startM.value = m;
+  if (+ui.endM.value < m) ui.endM.value = TOTAL_M;
+  refreshRange();
+  showMeasure(m, null);
+  save();
+}
+function refreshRange() {
+  const a = clampM(ui.startM.value), b = clampM(ui.endM.value);
+  msEls.forEach((el, m) => {
+    if (!el) return;
+    el.classList.toggle('start', m === a);
+    el.classList.toggle('inloop', m >= a && m <= b && !(a === 1 && b === TOTAL_M));
+  });
+}
+
+// ===== 歌詞大字 =====
+let bigFor = -1;
+function renderBig(m) {
+  if (bigFor === m) return;
+  bigFor = m;
+  ui.lyricBig.innerHTML = '';
+  const from = Math.max(1, m - 1), to = Math.min(TOTAL_M, m + 2);
+  for (let k = from; k <= to; k++) {
+    SCORE[k - 1].forEach((n, j) => {
+      if (n[0] === 'r' || !n[2]) return;
+      const s = document.createElement('span');
+      s.className = 'syl' + (k < m ? ' done' : '');
+      s.dataset.key = k + '-' + j;
+      s.textContent = n[2];
+      ui.lyricBig.appendChild(s);
+    });
+    if (k < to) {
+      const b = document.createElement('span'); b.className = 'bar'; b.textContent = '｜'; ui.lyricBig.appendChild(b);
+    }
+  }
+  if (!ui.lyricBig.querySelector('.syl')) ui.lyricBig.innerHTML = '<span class="syl">（休息）</span>';
+}
+
+let lastCurKey = null;
+function showMeasure(m, ev) {
+  ui.nowM.textContent = '第 ' + m + ' 小節';
+  renderBig(m);
+  msEls.forEach((el, k) => el && el.classList.toggle('playing', k === m && playing));
+  if (lastCurKey && sylEls[lastCurKey]) sylEls[lastCurKey].classList.remove('cur');
+  ui.lyricBig.querySelectorAll('.syl').forEach(s => s.classList.remove('cur'));
+  if (ev) {
+    ui.nowNote.textContent = ev.label;
+    const key = ev.m + '-' + ev.j;
+    if (ev.lyric) {
+      lastCurKey = key;
+      if (sylEls[key]) sylEls[key].classList.add('cur');
+      let reached = false;
+      ui.lyricBig.querySelectorAll('.syl').forEach(s => {
+        if (s.dataset.key === key) { s.classList.add('cur'); s.classList.remove('done'); reached = true; }
+        else if (!reached) s.classList.add('done');
+      });
+    }
+  } else {
+    ui.nowNote.textContent = '–';
+  }
+}
+
+// ===== 音訊 =====
+let ctx = null, master = null;
+function makeMaster() {
+  master = ctx.createGain();
+  master.gain.value = (+ui.vol.value / 100) * 0.9;
+  master.connect(ctx.destination);
+}
+function ensureAudio() {
+  if (!ctx) {
+    ctx = new (window.AudioContext || window.webkitAudioContext)();
+    makeMaster();
+  }
+  master.gain.value = (+ui.vol.value / 100) * 0.9;
+  if (ctx.state === 'suspended') ctx.resume();
+}
+const live = new Set();
+function track(node, t0, stopAt) { live.add(node); node.onended = () => live.delete(node); node.start(t0); node.stop(stopAt); }
+
+function playNote(midi, t0, dur) {
+  const f = 440 * Math.pow(2, (midi - 69) / 12);
+  const timbre = ui.timbre.value;
+  const out = ctx.createGain();
+  out.connect(master);
+  const end = t0 + dur;
+  if (timbre === 'piano') {
+    const o1 = ctx.createOscillator(); o1.type = 'triangle'; o1.frequency.value = f;
+    const o2 = ctx.createOscillator(); o2.type = 'sine'; o2.frequency.value = f * 2;
+    const g2 = ctx.createGain(); g2.gain.value = 0.25;
+    o1.connect(out); o2.connect(g2).connect(out);
+    out.gain.setValueAtTime(0.0001, t0);
+    out.gain.exponentialRampToValueAtTime(0.55, t0 + 0.008);
+    out.gain.exponentialRampToValueAtTime(0.18, t0 + 0.35);
+    out.gain.setTargetAtTime(0.0001, Math.max(t0 + 0.36, end - 0.05), 0.12);
+    track(o1, t0, end + 0.6); track(o2, t0, end + 0.6);
+    return;
+  }
+  const atk = timbre === 'pure' ? 0.02 : 0.06;
+  const rel = 0.07;
+  const sus = timbre === 'pure' ? 0.45 : 0.6;
+  out.gain.setValueAtTime(0.0001, t0);
+  out.gain.linearRampToValueAtTime(sus, t0 + atk);
+  out.gain.setValueAtTime(sus, Math.max(t0 + atk, end - rel));
+  out.gain.linearRampToValueAtTime(0.0001, end);
+  if (timbre === 'pure') {
+    const o = ctx.createOscillator(); o.type = 'sine'; o.frequency.value = f;
+    o.connect(out); track(o, t0, end + 0.05);
+    return;
+  }
+  // 人聲：鋸齒波經過「oo」母音共振峰，再加一點顫音
+  const o = ctx.createOscillator(); o.type = 'sawtooth'; o.frequency.value = f;
+  const body = ctx.createOscillator(); body.type = 'sine'; body.frequency.value = f;
+  const vib = ctx.createOscillator(); vib.frequency.value = 5.3;
+  const vibG = ctx.createGain();
+  vibG.gain.setValueAtTime(0, t0);
+  vibG.gain.linearRampToValueAtTime(f * 0.012, t0 + Math.min(0.5, dur * 0.6));
+  vib.connect(vibG);
+  vibG.connect(o.frequency);
+  vibG.connect(body.frequency);
+  const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 1400; lp.Q.value = 0.5;
+  const f1 = ctx.createBiquadFilter(); f1.type = 'bandpass'; f1.frequency.value = 320; f1.Q.value = 4;
+  const f2 = ctx.createBiquadFilter(); f2.type = 'bandpass'; f2.frequency.value = 800; f2.Q.value = 6;
+  const g1 = ctx.createGain(); g1.gain.value = 2.2;
+  const g2 = ctx.createGain(); g2.gain.value = 0.9;
+  const bodyG = ctx.createGain(); bodyG.gain.value = 0.35;
+  o.connect(lp);
+  lp.connect(f1).connect(g1).connect(out);
+  lp.connect(f2).connect(g2).connect(out);
+  body.connect(bodyG).connect(out);
+  track(o, t0, end + 0.05); track(vib, t0, end + 0.05); track(body, t0, end + 0.05);
+}
+
+function click(t0, accent) {
+  const o = ctx.createOscillator(); o.type = 'square';
+  o.frequency.value = accent ? 1760 : 1180;
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(accent ? 0.22 : 0.12, t0);
+  g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.04);
+  o.connect(g).connect(master);
+  track(o, t0, t0 + 0.05);
+}
+
+// ===== 排程 =====
+let playing = false;
+let plan = null; // {t0, items, endAt, a, b}
+let timer = null, raf = null;
+let nextIdx = 0;
+
+function quarterSec(m) { return 60 / (+ui.tempo.value * 2) / ritardFactor(m); }
+
+function buildPlan(a, b, withCount) {
+  const items = [];
+  let clock = 0;
+  const qsA = quarterSec(a);
+  if (withCount) {
+    for (let k = 0; k < 3; k++) items.push({ at: k * 2 * qsA, kind: 'click', accent: k === 0 });
+    clock = 6 * qsA;
+  }
+  const mTime = [];
+  for (let m = a; m <= b; m++) {
+    mTime[m] = clock;
+    const qs = quarterSec(m);
+    if ($('metro').checked) for (let k = 0; k < 3; k++) items.push({ at: clock + k * 2 * qs, kind: 'click', accent: k === 0 });
+    items.push({ at: clock, kind: 'bar', m });
+    clock += BEATS_PER_BAR * qs;
+  }
+  const beatToTime = (beat) => {
+    let m = a;
+    while (m <= b && measureStart[m + 1] <= beat + 1e-9) m++;
+    if (m > b) return clock;
+    return mTime[m] + (beat - measureStart[m]) * quarterSec(m);
+  };
+  const s = measureStart[a], e = measureStart[b + 1];
+  for (const ev of events) {
+    const evEnd = ev.start + ev.dur;
+    if (evEnd <= s + 1e-9 || ev.start >= e - 1e-9) continue;
+    const st = Math.max(ev.start, s), en = Math.min(evEnd, e);
+    const at = beatToTime(st), end = beatToTime(en);
+    items.push({ at, kind: 'note', ev, dur: Math.max(0.05, end - at - 0.02) });
+  }
+  items.sort((x, y) => x.at - y.at || (x.kind === 'bar' ? -1 : y.kind === 'bar' ? 1 : 0));
+  return { items, endAt: clock, a, b, firstBarAt: mTime[a] };
+}
+
+function startPlayback() {
+  stopPlayback(true);
+  ensureAudio();
+  const a = clampM(ui.startM.value);
+  let b = clampM(ui.endM.value);
+  if (b < a) { b = TOTAL_M; ui.endM.value = b; }
+  plan = buildPlan(a, b, $('countin').checked);
+  plan.t0 = ctx.currentTime + 0.12;
+  nextIdx = 0;
+  playing = true;
+  ui.play.textContent = '❚❚ 暫停';
+  timer = setInterval(schedule, 25);
+  schedule();
+  raf = requestAnimationFrame(tick);
+}
+
+function schedule() {
+  if (!playing) return;
+  const horizon = ctx.currentTime + 0.15;
+  while (nextIdx < plan.items.length && plan.t0 + plan.items[nextIdx].at < horizon) {
+    const it = plan.items[nextIdx++];
+    const t = plan.t0 + it.at;
+    if (it.kind === 'click') click(t, it.accent);
+    else if (it.kind === 'note') playNote(it.ev.midi, t, it.dur);
+  }
+  if (ctx.currentTime > plan.t0 + plan.endAt + 0.05) {
+    if ($('loop').checked) {
+      startPlayback();
+    } else {
+      const a = plan.a;
+      stopPlayback(false);
+      showMeasure(a, null);
+    }
+  }
+}
+
+let shownM = -1, shownEv = null;
+function tick() {
+  if (!playing) return;
+  const now = ctx.currentTime - plan.t0;
+  let curM = plan.a, curEv = null;
+  for (const it of plan.items) {
+    if (it.at > now) break;
+    if (it.kind === 'bar') curM = it.m;
+    if (it.kind === 'note') curEv = (now < it.at + it.dur + 0.02) ? it.ev : null;
+  }
+  if (curM !== shownM || curEv !== shownEv) {
+    shownM = curM; shownEv = curEv;
+    showMeasure(curM, curEv);
+  }
+  drawRoll(now);
+  raf = requestAnimationFrame(tick);
+}
+
+function stopPlayback(silentUI) {
+  playing = false;
+  clearInterval(timer); timer = null;
+  cancelAnimationFrame(raf); raf = null;
+  for (const n of live) { try { n.stop(); } catch (e) {} }
+  live.clear();
+  if (ctx && master) {
+    // 換一個主輸出，切斷尚未結束的聲音
+    const old = master;
+    makeMaster();
+    try { old.disconnect(); } catch (e) {}
+  }
+  ui.play.textContent = '▶ 播放';
+  msEls.forEach(el => el && el.classList.remove('playing'));
+  shownM = -1; shownEv = null;
+  if (!silentUI) drawRoll(null);
+}
+
+// 暫停：記住目前小節，下次從那裡繼續
+function pausePlayback() {
+  const m = shownM > 0 ? shownM : clampM(ui.startM.value);
+  stopPlayback(false);
+  setStart(m);
+  drawRoll(null);
+}
+
+// ===== 音高示意圖 =====
+const MIN_MIDI = Math.min(...events.map(e => e.midi)) - 2;
+const MAX_MIDI = Math.max(...events.map(e => e.midi)) + 2;
+function cssVar(n) { return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
+let rollView = { fromBeat: 0, span: 24 };
+function currentBeat(now) {
+  if (!(playing && plan && now != null)) return measureStart[clampM(ui.startM.value)];
+  if (now < plan.firstBarAt) return measureStart[plan.a];
+  let beat = measureStart[plan.a];
+  for (const it of plan.items) {
+    if (it.at > now) break;
+    if (it.kind === 'bar') beat = measureStart[it.m] + Math.min(BEATS_PER_BAR, (now - it.at) / quarterSec(it.m));
+  }
+  return beat;
+}
+function drawRoll(now) {
+  const cv = ui.roll;
+  const dpr = devicePixelRatio || 1;
+  const W = cv.clientWidth, H = cv.clientHeight;
+  if (cv.width !== W * dpr || cv.height !== H * dpr) { cv.width = W * dpr; cv.height = H * dpr; }
+  const g = cv.getContext('2d');
+  g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  g.clearRect(0, 0, W, H);
+  const beat = currentBeat(now);
+  const span = W < 500 ? 12 : 24;
+  const from = beat - span * 0.3;
+  rollView = { fromBeat: from, span };
+  const x = b => (b - from) / span * W;
+  const y = mi => H - 10 - (mi - MIN_MIDI) / (MAX_MIDI - MIN_MIDI) * (H - 30);
+  const line = cssVar('--line'), muted = cssVar('--muted'), acc = cssVar('--accent'), nowC = cssVar('--now'), ink = cssVar('--ink');
+  g.font = '11px system-ui, sans-serif';
+  for (let m = 1; m <= TOTAL_M + 1; m++) {
+    const bx = x(measureStart[m]);
+    if (bx < -2 || bx > W + 2) continue;
+    g.strokeStyle = line; g.lineWidth = 1;
+    g.beginPath(); g.moveTo(bx, 0); g.lineTo(bx, H); g.stroke();
+    if (m <= TOTAL_M) { g.fillStyle = muted; g.fillText(String(m), bx + 3, 12); }
+  }
+  for (const ev of events) {
+    const x0 = x(ev.start), x1 = x(ev.start + ev.dur);
+    if (x1 < 0 || x0 > W) continue;
+    const yy = y(ev.midi);
+    const active = playing && beat >= ev.start && beat < ev.start + ev.dur;
+    g.fillStyle = active ? nowC : acc;
+    g.globalAlpha = active ? 1 : 0.75;
+    g.fillRect(x0 + 1, yy - 4, Math.max(2, x1 - x0 - 2), 8);
+    g.globalAlpha = 1;
+    if (ev.lyric && x1 - x0 > 10) {
+      g.fillStyle = ink;
+      g.font = '12px "Noto Sans TC", system-ui, sans-serif';
+      g.fillText(ev.lyric, x0 + 2, yy - 8);
+    }
+  }
+  const px = x(beat);
+  g.strokeStyle = nowC; g.lineWidth = 2;
+  g.beginPath(); g.moveTo(px, 0); g.lineTo(px, H); g.stroke();
+}
+ui.roll.addEventListener('click', (e) => {
+  const r = ui.roll.getBoundingClientRect();
+  const b = rollView.fromBeat + (e.clientX - r.left) / r.width * rollView.span;
+  let m = 1;
+  while (m < TOTAL_M && measureStart[m + 1] <= b) m++;
+  setStart(m); startPlayback();
+});
+
+// ===== 控制項 =====
+ui.play.addEventListener('click', () => { if (playing) pausePlayback(); else startPlayback(); });
+ui.stop.addEventListener('click', () => { const a = plan ? plan.a : clampM(ui.startM.value); stopPlayback(false); setStart(a); drawRoll(null); });
+function step(d) {
+  const wasPlaying = playing;
+  const base = wasPlaying && shownM > 0 ? shownM : clampM(ui.startM.value);
+  if (wasPlaying) stopPlayback(true);
+  setStart(base + d);
+  if (wasPlaying) startPlayback(); else drawRoll(null);
+}
+ui.prev.addEventListener('click', () => step(-1));
+ui.next.addEventListener('click', () => step(1));
+ui.tempo.addEventListener('input', () => { ui.tempoVal.textContent = ui.tempo.value; save(); });
+ui.tempo.addEventListener('change', () => {
+  if (playing) { const m = shownM > 0 ? shownM : clampM(ui.startM.value); stopPlayback(true); setStart(m); startPlayback(); }
+});
+ui.vol.addEventListener('input', () => { ui.volVal.textContent = ui.vol.value + '%'; if (master) master.gain.value = (+ui.vol.value / 100) * 0.9; save(); });
+ui.startM.addEventListener('change', () => { setStart(ui.startM.value); drawRoll(null); });
+ui.endM.addEventListener('change', () => { ui.endM.value = clampM(ui.endM.value); refreshRange(); save(); });
+['timbre', 'metro', 'countin', 'loop', 'ritard'].forEach(id => $(id).addEventListener('change', save));
+document.addEventListener('keydown', (e) => {
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+  if (e.code === 'Space') { e.preventDefault(); ui.play.click(); }
+  if (e.code === 'ArrowLeft') step(-1);
+  if (e.code === 'ArrowRight') step(1);
+});
+addEventListener('resize', () => { if (!playing) drawRoll(null); });
+
+// 偏好設定只存在本機瀏覽器
+function save() {
+  try {
+    localStorage.setItem('tenorPractice', JSON.stringify({
+      tempo: ui.tempo.value, vol: ui.vol.value, timbre: ui.timbre.value, start: ui.startM.value, end: ui.endM.value,
+      metro: $('metro').checked, countin: $('countin').checked, loop: $('loop').checked, ritard: $('ritard').checked,
+    }));
+  } catch (e) {}
+}
+function load() {
+  try {
+    const s = JSON.parse(localStorage.getItem('tenorPractice') || 'null');
+    if (!s) return;
+    ui.tempo.value = s.tempo; ui.tempoVal.textContent = s.tempo;
+    ui.vol.value = s.vol; ui.volVal.textContent = s.vol + '%';
+    ui.timbre.value = s.timbre; ui.startM.value = s.start; ui.endM.value = s.end;
+    $('metro').checked = s.metro; $('countin').checked = s.countin; $('loop').checked = s.loop; $('ritard').checked = s.ritard;
+  } catch (e) {}
+}
+load();
+refreshRange();
+showMeasure(clampM(ui.startM.value), null);
+drawRoll(null);
+</script>
+</body>
+</html>
