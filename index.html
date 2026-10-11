@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Tenor 聲部練習</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8E%B5%3C/text%3E%3C/svg%3E">
-<meta name="description" content="《我只想跟你一起去聽音樂會》Tenor 聲部示範播放器：可調速度、從任一小節開始、顯示歌詞。">
+<meta name="description" content="Tenor 聲部示範播放器（《我只想跟你一起去聽音樂會》、Cantate Domino in B♭）：可切換曲目、調速度、從任一小節開始、顯示歌詞。">
 <style>
 :root {
   --bg: #f6f4ef;
@@ -126,6 +126,9 @@ canvas#roll { width: 100%; height: 210px; display: block; border-radius: 8px; ba
 .notes p { font-size: .9rem; margin: 6px 0; }
 .legend { font-size: .8rem; color: var(--muted); margin-top: 8px; }
 .legend span { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin: 0 4px 0 10px; vertical-align: -1px; }
+.songs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+.songs button { padding: 6px 12px; font-size: .9rem; border-radius: 999px; }
+.songs button.on { background: var(--ink); border-color: var(--ink); color: var(--bg); font-weight: 600; }
 @media (max-width: 560px) {
   .now { margin-left: 0; width: 100%; justify-content: space-between; }
   .lyric-big { font-size: 1.25rem; }
@@ -135,8 +138,9 @@ canvas#roll { width: 100%; height: 210px; display: block; border-radius: 8px; ba
 </head>
 <body>
 <div class="wrap">
-  <h1>我只想跟你一起去聽音樂會｜Tenor 練習</h1>
-  <p class="sub">只播 Tenor 聲部，播放實際音高（比譜面低八度）。3/2 拍，共 86 小節。</p>
+  <div class="songs" id="songs" role="tablist" aria-label="選擇曲目"></div>
+  <h1 id="title"></h1>
+  <p class="sub" id="sub"></p>
 
   <div class="card">
     <div class="transport">
@@ -151,11 +155,11 @@ canvas#roll { width: 100%; height: 210px; display: block; border-radius: 8px; ba
     </div>
 
     <div class="grid2">
-      <label class="row">速度（二分音符／分鐘）<span class="val" id="tempoVal">70</span>
+      <label class="row"><span id="tempoLabel">速度</span><span class="val" id="tempoVal">70</span>
         <input type="range" id="tempo" min="30" max="100" step="1" value="70">
       </label>
       <label class="row">從第幾小節開始
-        <span><input type="number" id="startM" min="1" max="86" value="1"> 到 <input type="number" id="endM" min="1" max="86" value="86"> 小節</span>
+        <span><input type="number" id="startM" min="1" value="1"> 到 <input type="number" id="endM" min="1" value="1"> 小節</span>
       </label>
       <label class="row">音色
         <select id="timbre">
@@ -169,10 +173,10 @@ canvas#roll { width: 100%; height: 210px; display: block; border-radius: 8px; ba
       </label>
     </div>
     <div class="checks" style="margin-top:12px">
-      <label><input type="checkbox" id="metro" checked> 節拍器（每個二分音符一拍）</label>
+      <label><input type="checkbox" id="metro" checked> <span id="metroLabel">節拍器</span></label>
       <label><input type="checkbox" id="countin" checked> 預備拍一小節</label>
       <label><input type="checkbox" id="loop"> 重複播放所選範圍</label>
-      <label><input type="checkbox" id="ritard" checked> 依譜面漸慢（ritard.）</label>
+      <label><input type="checkbox" id="ritard" checked> 依譜面漸慢（rit.）</label>
     </div>
   </div>
 
@@ -188,7 +192,7 @@ canvas#roll { width: 100%; height: 210px; display: block; border-radius: 8px; ba
       </label>
     </div>
     <canvas id="roll"></canvas>
-    <div class="hint">上圖是音高示意：橫條越高音越高、越長拍越長，條下方標唱名或音名。唱名採首調：第 39–54 小節以 E 為 Do，其餘以 A♭ 為 Do。點圖上任一處可從該小節開始。</div>
+    <div class="hint" id="rollHint"></div>
   </div>
 
   <div class="card">
@@ -197,8 +201,123 @@ canvas#roll { width: 100%; height: 210px; display: block; border-radius: 8px; ba
     <div class="legend">點一下小節＝從那裡開始播放<span style="background:var(--accent-soft)"></span>播放範圍<span style="background:var(--now-soft)"></span>正在播放</div>
   </div>
 
-  <div class="card notes">
-    <h2>使用說明與注意事項</h2>
+  <div class="card notes" id="notes"></div>
+</div>
+
+<script>
+// ===== 樂譜資料（譜面記譜音高，Tenor 實際音高低八度）=====
+// 每個音：[音高, 拍數(四分音符為 1), 歌詞]；音高結尾加 ~ 表示與下一個音連結；'r' 為休止。
+const T3 = 2 / 3;      // 四分音符三連音
+const E3 = 1 / 3;      // 八分音符三連音
+const REST4 = [['r', 4]];
+
+const SONGS = [
+  {
+    id: 'concert',
+    tab: '我只想跟你一起去聽音樂會',
+    title: '我只想跟你一起去聽音樂會｜Tenor 練習',
+    sub: '只播 Tenor 聲部，播放實際音高（比譜面低八度）。3/2 拍，共 86 小節。',
+    storageKey: 'tenorPractice',
+    beatsPerBar: 6,     // 以四分音符計
+    beatUnit: 2,        // 一拍＝二分音符
+    tempo: { min: 30, max: 100, def: 70, label: '速度（二分音符／分鐘）' },
+    metroLabel: '節拍器（每個二分音符一拍）',
+    score: [
+      /* 1 */ [['r', 6]],
+      /* 2 */ [['r', 6]],
+      /* 3 */ [['r', 6]],
+      /* 4 */ [['r', 2], ['r', 1], ['Eb4', 1, '我'], ['Eb4', 1, '只'], ['Eb4', 1, '想']],
+      /* 5 */ [['Db5', 1, '和'], ['C5~', 2, '你'], ['C5', 3, '']],
+      /* 6 */ [['r', 1], ['C5', 1, '一'], ['Bb4', 1, '起'], ['C5', 1, '去'], ['Eb5', 1.5, '聽'], ['C5', .5, '音']],
+      /* 7 */ [['C5', 1, '樂'], ['Ab4~', 2, '會'], ['Ab4', 3, '']],
+      /* 8 */ [['r', 2], ['r', 1], ['F4', 1, '戴'], ['G4', 1, '上'], ['Ab4', 1, '我']],
+      /* 9 */ [['C5', 1, '親'], ['Bb4~', 2, '手'], ['Bb4', 3, '']],
+      /* 10 */ [['r', 2], ['Ab4', 1, '親'], ['F4', 1, '手'], ['G4', 1, '織'], ['Ab4', 1, '的']],
+      /* 11 */ [['r', 1], ['C5', 4, '圍'], ['Db5', 1, '']],
+      /* 12 */ [['Bb4', 2, '巾'], ['r', 1], ['Eb4', 1, '不'], ['Eb4', 1, '能'], ['Eb4', 1, '像']],
+      /* 13 */ [['Db5', 1, '魔'], ['C5~', 2, '毯'], ['C5', 3, '']],
+      /* 14 */ [['r', 2], ['Bb4', 1, '帶'], ['C5', 1, '你'], ['Eb5', T3, '飛'], ['Eb5', T3, '向'], ['C5', T3, '天']],
+      /* 15 */ [['Ab4', 6, '空']],
+      /* 16 */ [['r', 2], ['r', 1], ['F4', .5, '但'], ['F4', .5, '我'], ['G4', 1, '織'], ['Ab4', 1, '了']],
+      /* 17 */ [['C5', 1, '一'], ['Bb4', 2, '道'], ['C5', 1, '一'], ['Bb4', 1, '道'], ['C5', 1, '彩']],
+      /* 18 */ [['Bb4', 2, '虹'], ['Db5', 3, '在'], ['Bb4', 1, '上']],
+      /* 19 */ [['C5', 6, '頭']],
+      /* 20 */ [['r', 2], ['r', 1], ['Ab4', 1, '我'], ['Ab4', 1, '會'], ['Ab4', 1, '記']],
+      /* 21 */ [['Cb5', 3, '得'], ['Cb5', .5, '替'], ['Cb5', .5, '你'], ['Bb4', 1, '帶'], ['Bb4', 1, '上']],
+      /* 22 */ [['C5', 1.5, '一'], ['Ab4', .5, '支'], ['Ab4', 1, '傘'], ['r', 1], ['Ab4', T3, '為'], ['Ab4', T3, '你'], ['Ab4', T3, '擋']],
+      /* 23 */ [['Cb5', 2, '開'], ['Cb5', 1, '他'], ['Cb5', 1, '們'], ['Cb5', 1, '口'], ['Cb5', 1, '中']],
+      /* 24 */ [['r', 2], ['Bb4', 1, '名'], ['Bb4', 1, '為'], ['Bb4', 1, '愛'], ['Bb4', 1, '的']],
+      /* 25 */ [['r', 1], ['C5~', 1, '黑'], ['C5', 4, '']],
+      /* 26 */ [['Bb4', 4, '雨'], ['r', 2]],
+      /* 27 */ [['C5', 4, 'Du'], ['Bb4', 1, 'du'], ['Db5', 1, 'mein']],
+      /* 28 */ [['C5', 2, 'Herz,'], ['r', 2], ['C5', 2, 'du']],
+      /* 29 */ [['F5~', 2, "Wonn',"], ['F5', 1, ''], ['Eb5', 1, 'o'], ['Db5', 1, 'du'], ['C5', 1, 'mein']],
+      /* 30 */ [['Bb4', 2, 'Schmerz'], ['r', 2], ['Eb5', 1, 'du'], ['Db5', 1, '']],
+      /* 31 */ [['C5', 1, 'mei'], ['Bb4', 1, ''], ['Ab4', 2, 'ne'], ['G4', 2, 'Welt,']],
+      /* 32 */ [['Ab4', 2, 'le'], ['C5', 2, ''], ['Ab4', 2, 'be']],
+      /* 33 */ [['Db5', 2, 'Him'], ['Db5', 2, 'mel'], ['C5', 2, 'ich']],
+      /* 34 */ [['C5', 2, 'schwe'], ['C5', 2, 'be'], ['Ab4', 2, 'mein']],
+      /* 35 */ [['Bb4', 3, 'Grab'], ['r', 1], ['Bb4', 1, 'hin'], ['G4', 1, '']],
+      /* 36 */ [['Eb4', 2, 'ab'], ['Ab4', 1, 'ich'], ['Gb4', 1, 'e'], ['F4', 1, ''], ['Fb4', 1, 'wig']],
+      /* 37 */ [['Eb4', 1, 'mei'], ['Ab4', 1, ''], ['C5', 2, ''], ['Bb4', 1, 'ne'], ['Db5', 1, '']],
+      /* 38 */ [['C5', 4, 'gab'], ['r', 2]],
+      /* 39 */ [['r', 6]],
+      /* 40 */ [['r', 6]],
+      /* 41 */ [['r', 6]],
+      /* 42 */ [['r', 6]],
+      /* 43 */ [['r', 2], ['B4', 1, '好'], ['B4', 1, '好'], ['A4', 1, '聽'], ['B4', 1, '一']],
+      /* 44 */ [['C#5', 4, '場'], ['r', 1], ['B4', 1, '一']],
+      /* 45 */ [['A4', 3, '場'], ['A4', 1, '音'], ['A4~', 1.5, '樂'], ['A4', .5, '']],
+      /* 46 */ [['B4', 2, '會'], ['r', 2], ['r', 2]],
+      /* 47 */ [['r', 6]],
+      /* 48 */ [['r', 6]],
+      /* 49 */ [['r', 6]],
+      /* 50 */ [['r', 6]],
+      /* 51 */ [['E5', 6, 'mm/oo']],
+      /* 52 */ [['E5', 6, 'mm/oo']],
+      /* 53 */ [['E5', 6, 'mm/oo']],
+      /* 54 */ [['r', 2], ['r', 1], ['C#5', 1, '我'], ['C#5', 1, '會'], ['C#5', 1, '給']],
+      /* 55 */ [['Db5', 2, '你'], ['Db5', 1, '一'], ['Db5', 1, '個'], ['Db5', T3, '小'], ['Db5', T3, '小'], ['Eb5', T3, '的']],
+      /* 56 */ [['Bb4', 1, '擁'], ['C5', 2, '抱'], ['r', 1], ['C5', 1.5, '比'], ['C5', .5, '你']],
+      /* 57 */ [['C5', 1, '聽'], ['F4', .5, '過'], ['F4', .5, '的'], ['F4', 1, '所'], ['F4', 1, '有'], ['G4', 1, '情'], ['Ab4', 1, '歌']],
+      /* 58 */ [['r', 2], ['Ab4', 1, '都'], ['F4', 1, '要'], ['G4', 1, '簡'], ['Ab4', 1, '單']],
+      /* 59 */ [['r', 1], ['Ab4~', 1, '溫'], ['Ab4', 4, '']],
+      /* 60 */ [['G4', 2, '暖'], ['r', 1], ['Eb4', 1, '我'], ['Eb4', 1, '只'], ['Eb4', 1, '想']],
+      /* 61 */ [['Db5', 1, '和'], ['C5~', 2, '你'], ['C5', 3, '']],
+      /* 62 */ [['r', 1], ['C5', 1, '一'], ['Bb4', 1, '起'], ['C5', 1, '去'], ['Eb5', 1.5, '聽'], ['C5', .5, '音']],
+      /* 63 */ [['C5', 1, '樂'], ['Ab4~', 2, '會'], ['Ab4', 3, '']],
+      /* 64 */ [['r', 2], ['r', 1], ['F4', 1, '戴'], ['G4', 1, '上'], ['Ab4', 1, '我']],
+      /* 65 */ [['C5', 1, '親'], ['Bb4~', 2, '手'], ['Bb4', 3, '']],
+      /* 66 */ [['r', 2], ['Ab4', 1, '親'], ['F4', 1, '手'], ['G4', 1, '織'], ['Ab4', 1, '的']],
+      /* 67 */ [['r', 1], ['C5', 4, '圍'], ['Db5', 1, '']],
+      /* 68 */ [['Bb4', 2, '巾'], ['r', 1], ['Eb4', 1, '不'], ['Eb4', 1, '能'], ['Eb4', 1, '像']],
+      /* 69 */ [['Db5', 1, '魔'], ['C5~', 2, '毯'], ['C5', 3, '']],
+      /* 70 */ [['r', 2], ['Bb4', 1, '帶'], ['C5', 1, '你'], ['Eb5', T3, '飛'], ['Eb5', T3, '向'], ['C5', T3, '天']],
+      /* 71 */ [['Ab4', 6, '空']],
+      /* 72 */ [['r', 2], ['r', 1], ['F4', .5, '但'], ['F4', .5, '我'], ['G4', 1, '織'], ['Ab4', 1, '了']],
+      /* 73 */ [['r', 1], ['F4', 1, '織'], ['G4', 1, '了'], ['Ab4', 1, '一'], ['Bb4', 1, '道'], ['C5', 1, '彩']],
+      /* 74 */ [['Bb4', 2, '虹'], ['Db5', 2, '在'], ['Bb4', 1, ''], ['Bb4', 1, '上']],
+      /* 75 */ [['C5', 3, '頭'], ['r', 1], ['r', 2]],
+      /* 76 */ [['r', 1], ['Ab4', 1, 'mei'], ['G4', 1, 'ne'], ['Ab4', 1, 'Welt,'], ['Bb4', 1, 'in'], ['Db5', .5, 'der'], ['Db5', .5, 'ich']],
+      /* 77 */ [['Bb4', 2, 'le'], ['C5', 2, 'be,'], ['C5', 1.5, 'Him'], ['F4', .5, 'mel']],
+      /* 78 */ [['Bb4', 1, 'du,'], ['A4', 1, ''], ['Bb4', 1, ''], ['Bb4', 1, 'dar'], ['C5', 1, 'ein'], ['C5', 1, 'ich']],
+      /* 79 */ [['Bb4', 1, 'schwe'], ['C5', 1, ''], ['Db5', 1, 'be,'], ['C5', 1, 'mein'], ['Db5', 1, 'gu'], ['Bb4', 1, 'ter']],
+      /* 80 */ [['C5', 1, 'Geist,'], ['Cb5', 1, 'mein'], ['Bb4', 2, 'bess'], ['Eb5', 2, 'res']],
+      /* 81 */ [['C5', 4, 'Ich!'], ['r', 2]],
+      /* 82 */ [['Ab4', 2, 'mm/oo'], ['G4', 1, 'mm/oo'], ['Ab4', 1, ''], ['C5', 1.5, ''], ['Bb4', .5, '']],
+      /* 83 */ [['Ab4', 6, 'mm/oo']],
+      /* 84 */ [['Ab4', 2, 'mm/oo'], ['G4', 1, 'mm/oo'], ['Ab4', 1, ''], ['Eb5', 1.5, ''], ['Db5', .5, '']],
+      /* 85 */ [['C5', 6, 'mm/oo']],
+      /* 86 */ [['r', 6]],
+    ],
+    sections: [['開頭', 1], ['段落 B', 39, 'B'], ['段落 C', 55, 'C'], ['段落 D', 61, 'D'], ['段落 E', 76, 'E'], ['段落 F', 82, 'F']],
+    // 漸慢區段：[起, 迄]，區段內逐小節放慢到原速的 80%
+    ritards: [[37, 38], [54, 54], [79, 81], [82, 83], [84, 85]],
+    tempoFactor: () => 1,
+    unsure: [5, 21, 23, 51, 52, 53, 56, 61, 77, 78],
+    keyOf: (m) => m >= 39 && m <= 54 ? { letter: 'E', pc: 4 } : { letter: 'A', pc: 8 },
+    hint: '上圖是音高示意：橫條越高音越高、越長拍越長，條下方標唱名或音名。唱名採首調：第 39–54 小節以 E 為 Do，其餘以 A♭ 為 Do。點圖上任一處可從該小節開始。',
+    notes: `<h2>使用說明與注意事項</h2>
     <p>這份示範是從樂譜照片逐小節人工聽寫而成，<strong>不是官方音檔</strong>。手機照片解析度有限，難免有看錯的音，練習前請跟聲部長或鋼琴對一次。下列小節特別沒把握（小節格右上角標「?」）：</p>
     <ul>
       <li>第 5、61 小節「和<strong>你</strong>」：「你」的長音判讀為 C（也可能是 B♭）。</li>
@@ -207,107 +326,106 @@ canvas#roll { width: 100%; height: 210px; display: block; border-radius: 8px; ba
       <li>第 56 小節「擁抱」：判讀為 B♭–C。</li>
       <li>第 77–78 小節（Him-mel du, dar-ein ich）：個別音高較難辨認。</li>
     </ul>
-    <p>第 39–54 小節為 E 大調（4 個升記號），其餘為 A♭ 大調（4 個降記號）。漸慢只是近似處理，實際以指揮為準。鍵盤操作：空白鍵播放／暫停，左右方向鍵切換小節。</p>
-  </div>
-</div>
-
-<script>
-// ===== 樂譜資料（譜面記譜音高，Tenor 實際音高低八度）=====
-// 每個音：[音高, 拍數(四分音符為 1), 歌詞]；音高結尾加 ~ 表示與下一個音連結；'r' 為休止。
-const T3 = 2 / 3;
-const SCORE = [
-  /* 1 */ [['r', 6]],
-  /* 2 */ [['r', 6]],
-  /* 3 */ [['r', 6]],
-  /* 4 */ [['r', 2], ['r', 1], ['Eb4', 1, '我'], ['Eb4', 1, '只'], ['Eb4', 1, '想']],
-  /* 5 */ [['Db5', 1, '和'], ['C5~', 2, '你'], ['C5', 3, '']],
-  /* 6 */ [['r', 1], ['C5', 1, '一'], ['Bb4', 1, '起'], ['C5', 1, '去'], ['Eb5', 1.5, '聽'], ['C5', .5, '音']],
-  /* 7 */ [['C5', 1, '樂'], ['Ab4~', 2, '會'], ['Ab4', 3, '']],
-  /* 8 */ [['r', 2], ['r', 1], ['F4', 1, '戴'], ['G4', 1, '上'], ['Ab4', 1, '我']],
-  /* 9 */ [['C5', 1, '親'], ['Bb4~', 2, '手'], ['Bb4', 3, '']],
-  /* 10 */ [['r', 2], ['Ab4', 1, '親'], ['F4', 1, '手'], ['G4', 1, '織'], ['Ab4', 1, '的']],
-  /* 11 */ [['r', 1], ['C5', 4, '圍'], ['Db5', 1, '']],
-  /* 12 */ [['Bb4', 2, '巾'], ['r', 1], ['Eb4', 1, '不'], ['Eb4', 1, '能'], ['Eb4', 1, '像']],
-  /* 13 */ [['Db5', 1, '魔'], ['C5~', 2, '毯'], ['C5', 3, '']],
-  /* 14 */ [['r', 2], ['Bb4', 1, '帶'], ['C5', 1, '你'], ['Eb5', T3, '飛'], ['Eb5', T3, '向'], ['C5', T3, '天']],
-  /* 15 */ [['Ab4', 6, '空']],
-  /* 16 */ [['r', 2], ['r', 1], ['F4', .5, '但'], ['F4', .5, '我'], ['G4', 1, '織'], ['Ab4', 1, '了']],
-  /* 17 */ [['C5', 1, '一'], ['Bb4', 2, '道'], ['C5', 1, '一'], ['Bb4', 1, '道'], ['C5', 1, '彩']],
-  /* 18 */ [['Bb4', 2, '虹'], ['Db5', 3, '在'], ['Bb4', 1, '上']],
-  /* 19 */ [['C5', 6, '頭']],
-  /* 20 */ [['r', 2], ['r', 1], ['Ab4', 1, '我'], ['Ab4', 1, '會'], ['Ab4', 1, '記']],
-  /* 21 */ [['Cb5', 3, '得'], ['Cb5', .5, '替'], ['Cb5', .5, '你'], ['Bb4', 1, '帶'], ['Bb4', 1, '上']],
-  /* 22 */ [['C5', 1.5, '一'], ['Ab4', .5, '支'], ['Ab4', 1, '傘'], ['r', 1], ['Ab4', T3, '為'], ['Ab4', T3, '你'], ['Ab4', T3, '擋']],
-  /* 23 */ [['Cb5', 2, '開'], ['Cb5', 1, '他'], ['Cb5', 1, '們'], ['Cb5', 1, '口'], ['Cb5', 1, '中']],
-  /* 24 */ [['r', 2], ['Bb4', 1, '名'], ['Bb4', 1, '為'], ['Bb4', 1, '愛'], ['Bb4', 1, '的']],
-  /* 25 */ [['r', 1], ['C5~', 1, '黑'], ['C5', 4, '']],
-  /* 26 */ [['Bb4', 4, '雨'], ['r', 2]],
-  /* 27 */ [['C5', 4, 'Du'], ['Bb4', 1, 'du'], ['Db5', 1, 'mein']],
-  /* 28 */ [['C5', 2, 'Herz,'], ['r', 2], ['C5', 2, 'du']],
-  /* 29 */ [['F5~', 2, "Wonn',"], ['F5', 1, ''], ['Eb5', 1, 'o'], ['Db5', 1, 'du'], ['C5', 1, 'mein']],
-  /* 30 */ [['Bb4', 2, 'Schmerz'], ['r', 2], ['Eb5', 1, 'du'], ['Db5', 1, '']],
-  /* 31 */ [['C5', 1, 'mei'], ['Bb4', 1, ''], ['Ab4', 2, 'ne'], ['G4', 2, 'Welt,']],
-  /* 32 */ [['Ab4', 2, 'le'], ['C5', 2, ''], ['Ab4', 2, 'be']],
-  /* 33 */ [['Db5', 2, 'Him'], ['Db5', 2, 'mel'], ['C5', 2, 'ich']],
-  /* 34 */ [['C5', 2, 'schwe'], ['C5', 2, 'be'], ['Ab4', 2, 'mein']],
-  /* 35 */ [['Bb4', 3, 'Grab'], ['r', 1], ['Bb4', 1, 'hin'], ['G4', 1, '']],
-  /* 36 */ [['Eb4', 2, 'ab'], ['Ab4', 1, 'ich'], ['Gb4', 1, 'e'], ['F4', 1, ''], ['Fb4', 1, 'wig']],
-  /* 37 */ [['Eb4', 1, 'mei'], ['Ab4', 1, ''], ['C5', 2, ''], ['Bb4', 1, 'ne'], ['Db5', 1, '']],
-  /* 38 */ [['C5', 4, 'gab'], ['r', 2]],
-  /* 39 */ [['r', 6]],
-  /* 40 */ [['r', 6]],
-  /* 41 */ [['r', 6]],
-  /* 42 */ [['r', 6]],
-  /* 43 */ [['r', 2], ['B4', 1, '好'], ['B4', 1, '好'], ['A4', 1, '聽'], ['B4', 1, '一']],
-  /* 44 */ [['C#5', 4, '場'], ['r', 1], ['B4', 1, '一']],
-  /* 45 */ [['A4', 3, '場'], ['A4', 1, '音'], ['A4~', 1.5, '樂'], ['A4', .5, '']],
-  /* 46 */ [['B4', 2, '會'], ['r', 2], ['r', 2]],
-  /* 47 */ [['r', 6]],
-  /* 48 */ [['r', 6]],
-  /* 49 */ [['r', 6]],
-  /* 50 */ [['r', 6]],
-  /* 51 */ [['E5', 6, 'mm/oo']],
-  /* 52 */ [['E5', 6, 'mm/oo']],
-  /* 53 */ [['E5', 6, 'mm/oo']],
-  /* 54 */ [['r', 2], ['r', 1], ['C#5', 1, '我'], ['C#5', 1, '會'], ['C#5', 1, '給']],
-  /* 55 */ [['Db5', 2, '你'], ['Db5', 1, '一'], ['Db5', 1, '個'], ['Db5', T3, '小'], ['Db5', T3, '小'], ['Eb5', T3, '的']],
-  /* 56 */ [['Bb4', 1, '擁'], ['C5', 2, '抱'], ['r', 1], ['C5', 1.5, '比'], ['C5', .5, '你']],
-  /* 57 */ [['C5', 1, '聽'], ['F4', .5, '過'], ['F4', .5, '的'], ['F4', 1, '所'], ['F4', 1, '有'], ['G4', 1, '情'], ['Ab4', 1, '歌']],
-  /* 58 */ [['r', 2], ['Ab4', 1, '都'], ['F4', 1, '要'], ['G4', 1, '簡'], ['Ab4', 1, '單']],
-  /* 59 */ [['r', 1], ['Ab4~', 1, '溫'], ['Ab4', 4, '']],
-  /* 60 */ [['G4', 2, '暖'], ['r', 1], ['Eb4', 1, '我'], ['Eb4', 1, '只'], ['Eb4', 1, '想']],
-  /* 61 */ [['Db5', 1, '和'], ['C5~', 2, '你'], ['C5', 3, '']],
-  /* 62 */ [['r', 1], ['C5', 1, '一'], ['Bb4', 1, '起'], ['C5', 1, '去'], ['Eb5', 1.5, '聽'], ['C5', .5, '音']],
-  /* 63 */ [['C5', 1, '樂'], ['Ab4~', 2, '會'], ['Ab4', 3, '']],
-  /* 64 */ [['r', 2], ['r', 1], ['F4', 1, '戴'], ['G4', 1, '上'], ['Ab4', 1, '我']],
-  /* 65 */ [['C5', 1, '親'], ['Bb4~', 2, '手'], ['Bb4', 3, '']],
-  /* 66 */ [['r', 2], ['Ab4', 1, '親'], ['F4', 1, '手'], ['G4', 1, '織'], ['Ab4', 1, '的']],
-  /* 67 */ [['r', 1], ['C5', 4, '圍'], ['Db5', 1, '']],
-  /* 68 */ [['Bb4', 2, '巾'], ['r', 1], ['Eb4', 1, '不'], ['Eb4', 1, '能'], ['Eb4', 1, '像']],
-  /* 69 */ [['Db5', 1, '魔'], ['C5~', 2, '毯'], ['C5', 3, '']],
-  /* 70 */ [['r', 2], ['Bb4', 1, '帶'], ['C5', 1, '你'], ['Eb5', T3, '飛'], ['Eb5', T3, '向'], ['C5', T3, '天']],
-  /* 71 */ [['Ab4', 6, '空']],
-  /* 72 */ [['r', 2], ['r', 1], ['F4', .5, '但'], ['F4', .5, '我'], ['G4', 1, '織'], ['Ab4', 1, '了']],
-  /* 73 */ [['r', 1], ['F4', 1, '織'], ['G4', 1, '了'], ['Ab4', 1, '一'], ['Bb4', 1, '道'], ['C5', 1, '彩']],
-  /* 74 */ [['Bb4', 2, '虹'], ['Db5', 2, '在'], ['Bb4', 1, ''], ['Bb4', 1, '上']],
-  /* 75 */ [['C5', 3, '頭'], ['r', 1], ['r', 2]],
-  /* 76 */ [['r', 1], ['Ab4', 1, 'mei'], ['G4', 1, 'ne'], ['Ab4', 1, 'Welt,'], ['Bb4', 1, 'in'], ['Db5', .5, 'der'], ['Db5', .5, 'ich']],
-  /* 77 */ [['Bb4', 2, 'le'], ['C5', 2, 'be,'], ['C5', 1.5, 'Him'], ['F4', .5, 'mel']],
-  /* 78 */ [['Bb4', 1, 'du,'], ['A4', 1, ''], ['Bb4', 1, ''], ['Bb4', 1, 'dar'], ['C5', 1, 'ein'], ['C5', 1, 'ich']],
-  /* 79 */ [['Bb4', 1, 'schwe'], ['C5', 1, ''], ['Db5', 1, 'be,'], ['C5', 1, 'mein'], ['Db5', 1, 'gu'], ['Bb4', 1, 'ter']],
-  /* 80 */ [['C5', 1, 'Geist,'], ['Cb5', 1, 'mein'], ['Bb4', 2, 'bess'], ['Eb5', 2, 'res']],
-  /* 81 */ [['C5', 4, 'Ich!'], ['r', 2]],
-  /* 82 */ [['Ab4', 2, 'mm/oo'], ['G4', 1, 'mm/oo'], ['Ab4', 1, ''], ['C5', 1.5, ''], ['Bb4', .5, '']],
-  /* 83 */ [['Ab4', 6, 'mm/oo']],
-  /* 84 */ [['Ab4', 2, 'mm/oo'], ['G4', 1, 'mm/oo'], ['Ab4', 1, ''], ['Eb5', 1.5, ''], ['Db5', .5, '']],
-  /* 85 */ [['C5', 6, 'mm/oo']],
-  /* 86 */ [['r', 6]],
+    <p>第 39–54 小節為 E 大調（4 個升記號），其餘為 A♭ 大調（4 個降記號）。漸慢只是近似處理，實際以指揮為準。鍵盤操作：空白鍵播放／暫停，左右方向鍵切換小節。</p>`,
+  },
+  {
+    id: 'cantate',
+    tab: 'Cantate Domino in B♭',
+    title: 'Cantate Domino in B♭（Psalm 96）｜Tenor 練習',
+    sub: '松下耕作曲。只播 Tenor 聲部，播放實際音高（比譜面低八度）。4/4 拍，共 97 小節。',
+    storageKey: 'tenorPractice:cantate',
+    beatsPerBar: 4,
+    beatUnit: 1,        // 一拍＝四分音符
+    tempo: { min: 40, max: 120, def: 80, label: '速度（四分音符／分鐘）' },
+    metroLabel: '節拍器（每個四分音符一拍）',
+    score: [
+      /* 1 */ REST4, /* 2 */ REST4, /* 3 */ REST4, /* 4 */ REST4, /* 5 */ REST4,
+      /* 6 */ REST4, /* 7 */ REST4, /* 8 */ REST4, /* 9 */ REST4, /* 10 */ REST4,
+      /* 11 */ [['r', 1], ['D4', .5, 'Can'], ['Eb4', .5, ''], ['F4', 1, 'ta'], ['G4', .5, ''], ['A4', .5, 'te']],
+      /* 12 */ [['C5', .75, 'Do'], ['Bb4', .25, 'mi'], ['Bb4~', 1, 'no'], ['Bb4', .5, ''], ['Bb4', .5, 'can'], ['A4', .5, ''], ['F4', .5, 'ti']],
+      /* 13 */ [['G4', 1, 'cum'], ['D5', 1, 'no'], ['F4', 1, 'vum'], ['C5', 1, 'can']],
+      /* 14 */ [['Bb4', 1.5, 'ti'], ['Eb4', .5, 'cum'], ['D4', 1, 'no'], ['C4', 1, 'vum']],
+      /* 15 */ [['r', 1], ['D4', .5, 'can'], ['Eb4', .5, ''], ['F4', 1, 'ta'], ['G4', .5, ''], ['A4', .5, 'te']],
+      /* 16 */ [['C5', .75, 'Do'], ['Bb4', .25, 'mi'], ['D5', 2, 'no'], ['F5', 1, 'o']],
+      /* 17 */ [['Eb5', 2, 'mnis,'], ['F4', 1, 'o'], ['D5', 1, 'mnis']],
+      /* 18 */ [['C5', 4, 'ter']],
+      /* 19 */ [['Bb4', 4, 'ra']],
+      /* 20 */ REST4, /* 21 */ REST4, /* 22 */ REST4, /* 23 */ REST4, /* 24 */ REST4,
+      /* 25 */ REST4, /* 26 */ REST4,
+      /* 27 */ [['r', 1], ['C5', 1, 'can'], ['C5', 1.5, 'ta'], ['C5', .5, 'te']],
+      /* 28 */ [['Bb4', .75, 'Do'], ['G4', .25, 'mi'], ['G4~', 1, 'no'], ['G4', .5, ''], ['G4', .5, 'be'], ['Bb4', .5, 'ne'], ['D5', .5, 'di']],
+      /* 29 */ [['Eb5', 1, 'ci'], ['Eb5~', 1, 'te'], ['Eb5', .5, ''], ['Eb5', .5, 'no'], ['D5', .5, 'mi'], ['Bb4', .5, 'ni']],
+      /* 30 */ [['D5', 1.5, 'e'], ['C5', .5, ''], ['C5', 2, 'ius']],
+      /* 31 */ [['r', 1], ['C5', .5, 'ad'], ['C5', .5, 'nun'], ['C5', .5, 'ti'], ['C5', 1, 'a'], ['C5', .5, 'te']],
+      /* 32 */ [['C5', .5, 'di'], ['Bb4', .5, ''], ['Bb4', .5, 'em'], ['Bb4', .5, 'de'], ['D5', 1, 'di'], ['G4', 1, 'e']],
+      /* 33 */ [['r', 1], ['G4', .5, 'sa'], ['A4', .5, 'lu'], ['Bb4', .5, 'ta'], ['C5', 1, ''], ['D5', .5, 're']],
+      /* 34 */ [['D5', 1.5, 'e'], ['A4', .5, ''], ['A4', 2, 'ius']],
+      /* 35 */ [['B4', .5, 'quo'], ['B4', .5, 'ni'], ['B4', .5, 'am'], ['B4', .5, 'ma'], ['B4', .5, 'gnus'], ['B4', .5, 'Do'], ['B4', .5, 'mi'], ['A4', .5, 'nus']],
+      /* 36 */ [['G4', .5, 'et'], ['E5', .5, 'lau'], ['E5', .5, 'da'], ['E5', .5, 'bi'], ['E5', .5, 'lis'], ['E5', .5, 'val'], ['E5', .5, ''], ['D5', .5, 'de']],
+      /* 37 */ [['C5', .5, 'ter'], ['C5', .5, 'ri'], ['C5', .5, 'bi'], ['C5', .5, 'lis'], ['C5', .5, 'est'], ['C5', 1, 'su'], ['D5', .5, 'per']],
+      /* 38 */ [['E5', .5, 'o'], ['C5', .5, ''], ['C5', 1, 'mnes'], ['D5', 1, 'de'], ['D5', 1, 'os']],
+      /* 39 */ [['D5', .5, 'quo'], ['D5', .5, 'ni'], ['D5', 1, 'am'], ['D5', .5, 'o'], ['D5', .5, 'mnes'], ['D5', .5, 'di'], ['D5', .5, 'i']],
+      /* 40 */ [['D5', .5, 'gen'], ['E5', .5, 'ti'], ['E5', .5, 'um'], ['E5', .5, 'dae'], ['E5', .5, 'mo'], ['E5', .5, ''], ['E5', .5, 'ni'], ['E5', .5, 'a']],
+      /* 41 */ [['E5', 1, 'at'], ['E5', .5, 've'], ['E5', .5, 'ro'], ['E5', .5, 'Do'], ['E5', .5, 'mi'], ['E5', 1, 'nus']],
+      /* 42 */ [['E5', .5, 'cae'], ['A4', .5, ''], ['C5', 1, 'los'], ['E5', 1, 'fe'], ['D5', 1, 'cit']],
+      /* 43 */ [['r', .5], ['E5', .5, 'con'], ['E5', .75, 'fes'], ['E5', .25, 'si'], ['E5', 1.5, 'o'], ['E5', .5, 'et']],
+      /* 44 */ [['D5', .5, 'pul'], ['D5', .5, 'chri'], ['D5', 1, 'tu'], ['D5', 1.5, 'do'], ['D5', .5, 'in']],
+      /* 45 */ [['C5', 2, 'con'], ['C5', 1, 'spec'], ['C5', 1, 'tu']],
+      /* 46 */ [['B4', 1.5, 'e'], ['C5', .5, ''], ['B4', 2, 'ius']],
+      /* 47 */ [['r', 1], ['B4', .5, 'sanc'], ['B4', .5, 'ti'], ['B4', .75, 'mo'], ['B4', .25, 'ni'], ['B4', .5, 'a'], ['B4', .5, 'et']],
+      /* 48 */ [['B4', .5, 'ma'], ['C5', .5, ''], ['C5', .5, 'gni'], ['C5', .5, 'fi'], ['G5', .75, 'cen'], ['G4', .25, 'ti'], ['G4', .5, 'a'], ['G4', .5, 'in']],
+      /* 49 */ [['C5', E3, 'sanc'], ['C5', E3, 'ti'], ['C5', E3, 'fi'], ['B4', .5, 'ca'], ['B4', .5, 'ti'], ['E5', 1, 'o'], ['B4', 1, 'ne']],
+      /* 50 */ [['B4', 1.5, 'e'], ['A4', .5, ''], ['A4', 2, 'ius']],
+      /* 51 */ REST4, /* 52 */ REST4, /* 53 */ REST4, /* 54 */ REST4,
+      /* 55 */ REST4, /* 56 */ REST4, /* 57 */ REST4, /* 58 */ REST4,
+      /* 59 */ [['r', 2], ['A4', 1, 'Lae'], ['A4', 1, 'ten']],
+      /* 60 */ [['Bb4', 2, 'tur'], ['Bb4', 2, 'cae']],
+      /* 61 */ [['Bb4', 1, 'li'], ['Eb5', 1, 'et'], ['D5', 1, 'ex'], ['D5', 1, 'ul']],
+      /* 62 */ [['C5', 2, 'tet'], ['F5', 1, 'ter'], ['F4', 1, 'ra']],
+      /* 63 */ [['C5', 1.5, 'com'], ['D5', .5, ''], ['F4~', 2, 'mo']],
+      /* 64 */ [['F4', 1, ''], ['G4', .5, 've'], ['A4', .5, ''], ['B4', 1, 'a'], ['C5', .5, 'tur'], ['D5', .5, '']],
+      /* 65 */ [['F5', 1, 'ma'], ['Eb5', 1, 're'], ['G4', 1, 'et'], ['Bb4', 1, 'ple']],
+      /* 66 */ [['Bb4', 2, 'ni'], ['Bb4', 1.5, 'tu'], ['A4', .5, 'do']],
+      /* 67 */ [['Bb4', 2, 'e'], ['Bb4~', 2, 'ius']],
+      /* 68 */ [['Bb4', 4, '']],
+      /* 69 */ REST4, /* 70 */ REST4, /* 71 */ REST4, /* 72 */ REST4,
+      /* 73 */ REST4, /* 74 */ REST4, /* 75 */ REST4, /* 76 */ REST4,
+      /* 77 */ [['r', 1], ['D4', .5, 'Can'], ['Eb4', .5, ''], ['F4', 1, 'ta'], ['G4', .5, ''], ['A4', .5, 'te']],
+      /* 78 */ [['C5', .75, 'Do'], ['Bb4', .25, 'mi'], ['Bb4~', 1, 'no'], ['Bb4', .5, ''], ['Bb4', .5, 'can'], ['A4', .5, ''], ['F4', .5, 'ti']],
+      /* 79 */ [['G4', 1, 'cum'], ['D5', 1, 'no'], ['F4', 1, 'vum'], ['C5', 1, 'can']],
+      /* 80 */ [['Bb4', 1.5, 'ti'], ['Eb5', .5, 'cum'], ['D5', 1, 'no'], ['C5', 1, 'vum']],
+      /* 81 */ [['Bb4', 2, 'can'], ['A4', 1.5, 'ta'], ['A4', .5, 'te']],
+      /* 82 */ [['C5', .5, 'Do'], ['Bb4', .5, 'mi'], ['D5', 2, 'no'], ['F4', 1, 'can']],
+      /* 83 */ [['Bb4', 1, 'ta'], ['Bb4', 1, 'te'], ['A4', .5, 'Do'], ['Bb4', .5, 'mi'], ['F4', 1, 'no']],
+      /* 84 */ [['Bb4', 1, 'can'], ['Bb4', 1, 'ta'], ['Bb4', .5, ''], ['A4', .5, 'te'], ['A4', .5, 'Do'], ['Bb4', .5, 'mi']],
+      /* 85 */ [['Bb4~', 4, 'no']],
+      /* 86 */ [['Bb4', 4, '']],
+      /* 87 */ REST4, /* 88 */ REST4, /* 89 */ REST4, /* 90 */ REST4,
+      /* 91 */ REST4, /* 92 */ REST4, /* 93 */ REST4, /* 94 */ REST4,
+      /* 95 */ [['F4~', 4, 'mmm']],
+      /* 96 */ [['F4~', 4, '']],
+      /* 97 */ [['F4', 4, '']],
+    ],
+    sections: [['開頭', 1], ['Cantate', 11, 'A'], ['cantate benedicite', 27, 'B'], ['quoniam（G 大調）', 35, 'C'], ['sanctimonia', 47, 'D'], ['Laetentur', 59, 'E'], ['Cantate 再現', 77, 'F'], ['mmm 結尾', 95, 'G']],
+    ritards: [[33, 34], [42, 42], [49, 50], [84, 84]],
+    // 第 95 小節起 Meno mosso（♩＝60，原速 80 的 75%）
+    tempoFactor: (m) => m >= 95 ? 0.75 : 1,
+    unsure: [19, 34, 35, 40, 41, 42, 48, 63, 65, 80, 84],
+    keyOf: (m) => m >= 35 && m <= 54 ? { letter: 'G', pc: 7 } : { letter: 'B', pc: 10 },
+    hint: '上圖是音高示意：橫條越高音越高、越長拍越長，條下方標唱名或音名。唱名採首調：第 35–54 小節以 G 為 Do，其餘以 B♭ 為 Do。點圖上任一處可從該小節開始。',
+    notes: `<h2>使用說明與注意事項</h2>
+    <p>這份示範是從樂譜照片（第 2–14 頁）逐小節人工判讀而成，<strong>不是官方音檔</strong>。照片有角度、紙張彎曲，難免有看錯的音，練習前請跟聲部長或鋼琴對一次。下列小節特別沒把握（小節格右上角標「?」）：</p>
+    <ul>
+      <li>第 19 小節「ter-<strong>ra</strong>」全音符：判讀為 B♭。</li>
+      <li>第 34–35 小節：「e-ius」判讀為 D–A–A；「quoniam magnus Dominus」判讀為 7 個 B 加最後一個 A。</li>
+      <li>第 40–42 小節（gentium daemonia at vero Dominus caelos fecit）：多數判讀為 E，「cae-los fe-cit」為 E–A–C–E–D。</li>
+      <li>第 48 小節「magnificentia」：「cen」判讀為高音 G，之後跳下八度唱 G。</li>
+      <li>第 63–65 小節（commoveatur mare）：第 64 小節的 B 有還原記號（B♮）；「ma-re et ple-」判讀為 F–E♭–G–B♭。</li>
+      <li>第 80、84 小節：個別音高較難辨認。</li>
+    </ul>
+    <p>第 35–54 小節為 G 大調（1 個升記號），其餘為 B♭ 大調（2 個降記號）。第 95 小節起 Meno mosso（♩＝60）以 mmm 閉口哼唱到結束。漸慢只是近似處理，實際以指揮為準。鍵盤操作：空白鍵播放／暫停，左右方向鍵切換小節。</p>`,
+  },
 ];
-const SECTIONS = [['開頭', 1], ['B', 39], ['C', 55], ['D', 61], ['E', 76], ['F', 82]];
-// 漸慢區段：[起, 迄]，區段內逐小節放慢到原速的 80%
-const RITARDS = [[37, 38], [54, 54], [79, 81], [82, 83], [84, 85]];
-const UNSURE = [5, 21, 23, 51, 52, 53, 56, 61, 77, 78];
-const BEATS_PER_BAR = 6; // 以四分音符計
 
 // ===== 音高 =====
 const PC = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
@@ -330,20 +448,26 @@ function noteLabel(p) {
 const LETTERS = 'CDEFGAB';
 const MAJOR = [0, 2, 4, 5, 7, 9, 11];
 const SOLFA = ['Do', 'Re', 'Mi', 'Fa', 'Sol', 'La', 'Si'];
-function keyOf(m) { return m >= 39 && m <= 54 ? { letter: 'E', pc: 4 } : { letter: 'A', pc: 8 }; }
 function solfaLabel(p, m) {
   const r = parsePitch(p);
-  const k = keyOf(m);
+  const k = SONG.keyOf(m);
   const deg = (LETTERS.indexOf(r[1]) - LETTERS.indexOf(k.letter) + 7) % 7;
   const pc = PC[r[1]] + (r[2] === '#' ? 1 : r[2] === 'b' ? -1 : 0);
   const diff = ((pc - k.pc - MAJOR[deg]) % 12 + 18) % 12 - 6;
   return (diff > 0 ? '♯' : diff < 0 ? '♭' : '') + SOLFA[deg];
 }
 
+function $(id) { return document.getElementById(id); }
+
+// ===== 目前曲目（切換曲目時重建）=====
+let SONG, SCORE, BEATS_PER_BAR, TOTAL_M, MIN_MIDI, MAX_MIDI;
+let events = [], measureStart = [];
+let msEls = [], sylEls = {};
+
 // ===== 展開成事件 =====
-const events = [];
-const measureStart = [];
-(function build() {
+function buildEvents() {
+  events = [];
+  measureStart = [];
   let t = 0;
   let pending = null;
   SCORE.forEach((bar, i) => {
@@ -365,23 +489,23 @@ const measureStart = [];
       if (!tie) pending = null;
       t += dur;
     });
-    if (Math.abs(sum - BEATS_PER_BAR) > 1e-6) console.warn('第 ' + m + ' 小節拍數不符：' + sum);
+    if (Math.abs(sum - BEATS_PER_BAR) > 1e-6) console.warn(SONG.id + ' 第 ' + m + ' 小節拍數不符：' + sum);
   });
   measureStart[SCORE.length + 1] = t;
-})();
-const TOTAL_M = SCORE.length;
-
-function $(id) { return document.getElementById(id); }
+  MIN_MIDI = Math.min(...events.map(e => e.midi)) - 2;
+  MAX_MIDI = Math.max(...events.map(e => e.midi)) + 2;
+}
 
 function ritardFactor(m) {
-  if (!$('ritard').checked) return 1;
-  for (const [a, b] of RITARDS) {
+  let f = SONG.tempoFactor(m);
+  if (!$('ritard').checked) return f;
+  for (const [a, b] of SONG.ritards) {
     if (m >= a && m <= b) {
       const n = b - a + 1, k = m - a + 1;
-      return 1 - 0.2 * k / n;
+      return f * (1 - 0.2 * k / n);
     }
   }
-  return 1;
+  return f;
 }
 
 // ===== DOM =====
@@ -393,44 +517,72 @@ const ui = {
   measures: $('measures'), sections: $('sections'), roll: $('roll'),
 };
 
-const msEls = [];
-const sylEls = {}; // "小節-序號" -> span
-SCORE.forEach((bar, i) => {
-  const m = i + 1;
-  const el = document.createElement('div');
-  el.className = 'ms';
-  const sec = SECTIONS.find(s => s[1] === m && s[0].length === 1);
-  el.innerHTML = '<div class="no">' + m + (sec ? '<b>' + sec[0] + '</b>' : '') + '</div><div class="ly"></div>';
-  if (UNSURE.includes(m)) {
-    const f = document.createElement('span'); f.className = 'flag'; f.textContent = '?'; f.title = '這小節判讀較沒把握'; el.appendChild(f);
-  }
-  const ly = el.querySelector('.ly');
-  let any = false;
-  bar.forEach((n, j) => {
-    const lyric = n[2];
-    if (n[0] !== 'r' && lyric) {
-      const s = document.createElement('span');
-      s.textContent = lyric + (/[A-Za-z,!'/]$/.test(lyric) ? ' ' : '');
-      ly.appendChild(s);
-      sylEls[m + '-' + j] = s;
-      any = true;
-    }
-  });
-  if (!any) {
-    const allRest = bar.every(n => n[0] === 'r');
-    ly.innerHTML = allRest ? '<span class="r">休息</span>' : '<span class="r">（延長）</span>';
-  }
-  el.addEventListener('click', () => { setStart(m); startPlayback(); });
-  ui.measures.appendChild(el);
-  msEls[m] = el;
+const songBtns = {};
+SONGS.forEach(s => {
+  const b = document.createElement('button');
+  b.textContent = s.tab;
+  b.setAttribute('role', 'tab');
+  b.addEventListener('click', () => { if (SONG !== s) loadSong(s.id); });
+  $('songs').appendChild(b);
+  songBtns[s.id] = b;
 });
 
-SECTIONS.forEach(([name, m]) => {
-  const b = document.createElement('button');
-  b.textContent = (name.length === 1 ? '段落 ' + name : name) + '（' + m + '）';
-  b.addEventListener('click', () => { setStart(m); startPlayback(); });
-  ui.sections.appendChild(b);
-});
+function renderSong() {
+  document.title = SONG.tab + '｜Tenor 聲部練習';
+  $('title').textContent = SONG.title;
+  $('sub').textContent = SONG.sub;
+  $('tempoLabel').textContent = SONG.tempo.label;
+  $('metroLabel').textContent = SONG.metroLabel;
+  $('rollHint').textContent = SONG.hint;
+  $('notes').innerHTML = SONG.notes;
+  ui.tempo.min = SONG.tempo.min; ui.tempo.max = SONG.tempo.max;
+  ui.startM.max = TOTAL_M; ui.endM.max = TOTAL_M;
+  Object.entries(songBtns).forEach(([id, b]) => {
+    b.classList.toggle('on', id === SONG.id);
+    b.setAttribute('aria-selected', id === SONG.id ? 'true' : 'false');
+  });
+
+  ui.measures.innerHTML = '';
+  ui.sections.innerHTML = '';
+  msEls = [];
+  sylEls = {};
+  SCORE.forEach((bar, i) => {
+    const m = i + 1;
+    const el = document.createElement('div');
+    el.className = 'ms';
+    const sec = SONG.sections.find(s => s[1] === m && s[2]);
+    el.innerHTML = '<div class="no">' + m + (sec ? '<b>' + sec[2] + '</b>' : '') + '</div><div class="ly"></div>';
+    if (SONG.unsure.includes(m)) {
+      const f = document.createElement('span'); f.className = 'flag'; f.textContent = '?'; f.title = '這小節判讀較沒把握'; el.appendChild(f);
+    }
+    const ly = el.querySelector('.ly');
+    let any = false;
+    bar.forEach((n, j) => {
+      const lyric = n[2];
+      if (n[0] !== 'r' && lyric) {
+        const s = document.createElement('span');
+        s.textContent = lyric + (/[A-Za-z,!'/]$/.test(lyric) ? ' ' : '');
+        ly.appendChild(s);
+        sylEls[m + '-' + j] = s;
+        any = true;
+      }
+    });
+    if (!any) {
+      const allRest = bar.every(n => n[0] === 'r');
+      ly.innerHTML = allRest ? '<span class="r">休息</span>' : '<span class="r">（延長）</span>';
+    }
+    el.addEventListener('click', () => { setStart(m); startPlayback(); });
+    ui.measures.appendChild(el);
+    msEls[m] = el;
+  });
+
+  SONG.sections.forEach(([name, m]) => {
+    const b = document.createElement('button');
+    b.textContent = name + '（' + m + '）';
+    b.addEventListener('click', () => { setStart(m); startPlayback(); });
+    ui.sections.appendChild(b);
+  });
+}
 
 function clampM(v) { return Math.max(1, Math.min(TOTAL_M, Math.round(+v || 1))); }
 function setStart(m) {
@@ -584,21 +736,22 @@ let plan = null; // {t0, items, endAt, a, b}
 let timer = null, raf = null;
 let nextIdx = 0;
 
-function quarterSec(m) { return 60 / (+ui.tempo.value * 2) / ritardFactor(m); }
+function quarterSec(m) { return 60 / (+ui.tempo.value * SONG.beatUnit) / ritardFactor(m); }
 
 function buildPlan(a, b, withCount) {
   const items = [];
   let clock = 0;
+  const unit = SONG.beatUnit, beats = BEATS_PER_BAR / unit;
   const qsA = quarterSec(a);
   if (withCount) {
-    for (let k = 0; k < 3; k++) items.push({ at: k * 2 * qsA, kind: 'click', accent: k === 0 });
-    clock = 6 * qsA;
+    for (let k = 0; k < beats; k++) items.push({ at: k * unit * qsA, kind: 'click', accent: k === 0 });
+    clock = BEATS_PER_BAR * qsA;
   }
   const mTime = [];
   for (let m = a; m <= b; m++) {
     mTime[m] = clock;
     const qs = quarterSec(m);
-    if ($('metro').checked) for (let k = 0; k < 3; k++) items.push({ at: clock + k * 2 * qs, kind: 'click', accent: k === 0 });
+    if ($('metro').checked) for (let k = 0; k < beats; k++) items.push({ at: clock + k * unit * qs, kind: 'click', accent: k === 0 });
     items.push({ at: clock, kind: 'bar', m });
     clock += BEATS_PER_BAR * qs;
   }
@@ -701,8 +854,6 @@ function pausePlayback() {
 }
 
 // ===== 音高示意圖 =====
-const MIN_MIDI = Math.min(...events.map(e => e.midi)) - 2;
-const MAX_MIDI = Math.max(...events.map(e => e.midi)) + 2;
 function cssVar(n) { return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
 let rollView = { fromBeat: 0, span: 24 };
 function currentBeat(now) {
@@ -724,7 +875,7 @@ function drawRoll(now) {
   g.setTransform(dpr, 0, 0, dpr, 0, 0);
   g.clearRect(0, 0, W, H);
   const beat = currentBeat(now);
-  const span = W < 500 ? 12 : 24;
+  const span = BEATS_PER_BAR * (W < 500 ? 2 : 4);
   const from = beat - span * 0.3;
   rollView = { fromBeat: from, span };
   const x = b => (b - from) / span * W;
@@ -800,10 +951,11 @@ document.addEventListener('keydown', (e) => {
 });
 addEventListener('resize', () => { if (!playing) drawRoll(null); });
 
-// 偏好設定只存在本機瀏覽器
+// 偏好設定只存在本機瀏覽器（每首歌各自一份）
 function save() {
+  if (!SONG) return;
   try {
-    localStorage.setItem('tenorPractice', JSON.stringify({
+    localStorage.setItem(SONG.storageKey, JSON.stringify({
       tempo: ui.tempo.value, vol: ui.vol.value, timbre: ui.timbre.value, start: ui.startM.value, end: ui.endM.value,
       metro: $('metro').checked, countin: $('countin').checked, loop: $('loop').checked, ritard: $('ritard').checked,
       pitchLabel: $('pitchLabel').value,
@@ -811,20 +963,45 @@ function save() {
   } catch (e) {}
 }
 function load() {
+  ui.tempo.value = SONG.tempo.def; ui.tempoVal.textContent = SONG.tempo.def;
+  ui.startM.value = 1; ui.endM.value = TOTAL_M;
   try {
-    const s = JSON.parse(localStorage.getItem('tenorPractice') || 'null');
+    const s = JSON.parse(localStorage.getItem(SONG.storageKey) || 'null');
     if (!s) return;
-    ui.tempo.value = s.tempo; ui.tempoVal.textContent = s.tempo;
+    ui.tempo.value = s.tempo; ui.tempoVal.textContent = ui.tempo.value;
     ui.vol.value = s.vol; ui.volVal.textContent = s.vol + '%';
-    ui.timbre.value = s.timbre; ui.startM.value = s.start; ui.endM.value = s.end;
+    ui.timbre.value = s.timbre; ui.startM.value = clampM(s.start); ui.endM.value = clampM(s.end);
     $('metro').checked = s.metro; $('countin').checked = s.countin; $('loop').checked = s.loop; $('ritard').checked = s.ritard;
     if (s.pitchLabel) $('pitchLabel').value = s.pitchLabel;
   } catch (e) {}
 }
-load();
-refreshRange();
-showMeasure(clampM(ui.startM.value), null);
-drawRoll(null);
+
+function loadSong(id) {
+  if (playing) stopPlayback(true);
+  plan = null;
+  SONG = SONGS.find(s => s.id === id) || SONGS[0];
+  SCORE = SONG.score;
+  BEATS_PER_BAR = SONG.beatsPerBar;
+  TOTAL_M = SCORE.length;
+  buildEvents();
+  bigFor = -1; lastCurKey = null;
+  renderSong();
+  load();
+  refreshRange();
+  showMeasure(clampM(ui.startM.value), null);
+  drawRoll(null);
+  try { localStorage.setItem('tenorPractice:song', SONG.id); } catch (e) {}
+  if (location.hash.slice(1) !== SONG.id) history.replaceState(null, '', '#' + SONG.id);
+}
+addEventListener('hashchange', () => { const id = location.hash.slice(1); if (SONGS.some(s => s.id === id) && id !== SONG.id) loadSong(id); });
+
+(function init() {
+  let id = location.hash.slice(1);
+  if (!SONGS.some(s => s.id === id)) {
+    try { id = localStorage.getItem('tenorPractice:song') || ''; } catch (e) { id = ''; }
+  }
+  loadSong(id);
+})();
 </script>
 </body>
 </html>
