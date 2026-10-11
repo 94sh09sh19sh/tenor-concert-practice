@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Tenor 聲部練習</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8E%B5%3C/text%3E%3C/svg%3E">
-<meta name="description" content="Tenor 聲部示範播放器（《我只想跟你一起去聽音樂會》、Cantate Domino in B♭）：可切換曲目、調速度、從任一小節開始、顯示歌詞。">
+<meta name="description" content="Tenor 聲部示範播放器（《我只想跟你一起去聽音樂會》、Cantate Domino in B♭、The Lord Bless You and Keep You）：可切換曲目、調速度、從任一小節開始、顯示歌詞。">
 <style>
 :root {
   --bg: #f6f4ef;
@@ -423,6 +423,59 @@ const SONGS = [
       <li>第 80、84 小節：個別音高較難辨認。</li>
     </ul>
     <p>第 35–54 小節為 G 大調（1 個升記號），其餘為 B♭ 大調（2 個降記號）。第 95 小節起 Meno mosso（♩＝60）以 mmm 閉口哼唱到結束。漸慢只是近似處理，實際以指揮為準。鍵盤操作：空白鍵播放／暫停，左右方向鍵切換小節。</p>`,
+  },
+  {
+    id: 'lordbless',
+    tab: 'The Lord Bless You and Keep You',
+    title: 'The Lord Bless You and Keep You｜Tenor 練習',
+    sub: 'Peter C. Lutkin 作曲。只播 Tenor 聲部，播放實際音高（比譜面低八度）。4/4 拍，弱起一拍，共 24 小節。',
+    storageKey: 'tenorPractice:lordbless',
+    beatsPerBar: 4,
+    beatUnit: 1,        // 一拍＝四分音符
+    tempo: { min: 40, max: 100, def: 66, label: '速度（四分音符／分鐘）' },
+    metroLabel: '節拍器（每個四分音符一拍）',
+    score: [
+      /* 1 */ [['r', 3], ['E4', 1, 'The']],   // 弱起：前三拍補休止
+      /* 2 */ [['E4', 2, 'Lord'], ['G4', 1, 'bless'], ['E4', .5, 'you'], ['E4', .5, 'and']],
+      /* 3 */ [['A4', 1, 'keep'], ['G4', 1, ''], ['G4', 1, 'you,'], ['r', .5], ['C5', .5, 'the']],
+      /* 4 */ [['C5', 1, 'Lord'], ['G4', .5, 'lift'], ['G4', .5, 'His'], ['A4', .75, 'coun'], ['G#4', .25, 'te'], ['A4', .5, 'nance'], ['A4', .5, 'up']],
+      /* 5 */ [['B4', 1, 'on'], ['A4', 1, ''], ['B4', 1, 'you;'], ['r', 1]],
+      /* 6 */ [['r', .5], ['A4', .5, 'and'], ['A4', .5, 'give'], ['A4', .5, 'you'], ['A4', 1, 'peace,'], ['r', 1]],
+      /* 7 */ [['r', .5], ['B4', .5, 'and'], ['C5', .5, 'give'], ['B4', .5, 'you'], ['C5', .5, 'peace,'], ['G4', .5, 'the'], ['A4', .5, 'Lord'], ['B4', .5, '']],
+      /* 8 */ [['C5', 1, 'make'], ['C5', 1, 'His'], ['C5', .75, 'face'], ['C5', .25, 'to'], ['C5', .5, 'shine'], ['C5', .5, 'up']],
+      /* 9 */ [['C5', 1, 'on'], ['B4', 1, ''], ['C5', 1, 'you,'], ['r', 1]],
+      /* 10 */ [['r', 1], ['A4', .5, 'and'], ['B4', .5, 'be'], ['C5', .5, 'gra'], ['C5', .5, 'cious,'], ['r', 1]],
+      /* 11 */ [['r', 1], ['C5', .5, 'and'], ['Bb4', .5, 'be'], ['A4', 1, 'gra'], ['C5', 1, 'cious']],
+      /* 12 */ [['r', 1], ['r', .5], ['C5', .5, 'the'], ['Bb4', 1.5, 'Lord'], ['Bb4', .5, 'be']],
+      /* 13 */ [['Bb4', .5, 'gra'], ['Bb4', .5, 'cious,'], ['r', 1], ['A4', 1, 'gra'], ['A4', 1, 'cious']],
+      /* 14 */ [['G4', 3, 'un'], ['F4', 1, 'to']],
+      /* 15 */ [['E4', 1, 'you.'], ['G4', 1, 'A'], ['C5', 1, ''], ['B4', 1, '']],
+      /* 16 */ [['A4', 1, 'men,'], ['A4', 1, 'A'], ['D5', 1, ''], ['C5', 1, '']],
+      /* 17 */ [['B4', 2, 'men,'], ['G4', 1, 'A'], ['A4', .5, ''], ['B4', .5, '']],
+      /* 18 */ [['C5', 2, 'men,'], ['B4', 1, 'A'], ['C5', .5, ''], ['D5', .5, '']],
+      /* 19 */ [['E5', 3, ''], ['B4', 1, '']],
+      /* 20 */ [['C5', 1, 'men,'], ['D5', .5, 'A'], ['C5', .5, ''], ['B4', 2, 'men,']],
+      /* 21 */ [['B4', 1, ''], ['C5', .5, 'A'], ['B4', .5, ''], ['A4', 2, 'men,']],
+      /* 22 */ [['A4', 1, 'A'], ['Ab4', 1, ''], ['G4', 1, ''], ['F#4', 1, '']],
+      /* 23 */ [['F4', 2, 'men,'], ['F4', 2, 'A']],
+      /* 24 */ [['E4', 4, 'men.']],
+    ],
+    sections: [['The Lord bless you', 1], ['and give you peace', 5, 'B'], ['make His face to shine', 8, 'C'], ['be gracious', 11, 'D'], ['Amen', 15, 'E'], ['Amen 結尾', 20, 'F']],
+    ritards: [[9, 9], [20, 24]],
+    tempoFactor: () => 1,
+    unsure: [7, 12, 13, 19, 20, 21, 22],
+    keyOf: () => ({ letter: 'C', pc: 0 }),
+    hint: '上圖是音高示意：橫條越高音越高、越長拍越長，條下方標唱名或音名。全曲 C 大調，唱名以 C 為 Do。點圖上任一處可從該小節開始。',
+    notes: `<h2>使用說明與注意事項</h2>
+    <p>這份示範是從樂譜照片（共 2 頁）逐小節人工判讀而成，<strong>不是官方音檔</strong>。照片有角度、紙張彎曲，難免有看錯的音，練習前請跟聲部長或鋼琴對一次。下列小節特別沒把握（小節格右上角標「?」）：</p>
+    <ul>
+      <li>第 1 小節是弱起一拍，播放時前面補三拍休止。</li>
+      <li>第 7 小節「peace, the Lord」：判讀為 C–G–A–B 四個八分音符。</li>
+      <li>第 12–13 小節「the Lord be gra-cious」：判讀為 C–B♭–B♭–B♭–B♭。</li>
+      <li>第 19–21 小節 Amen 的歌詞位置依譜上手寫修改：第 19 小節不唱 men，第 20 小節第一個音改唱 men。</li>
+      <li>第 22–23 小節半音下行：A–A♭–G–F♯–F。</li>
+    </ul>
+    <p>全曲為 C 大調（無升降記號）。第 9 小節有 rit.，第 20 小節起 poco a poco dim. e rit.，最後一個音有延長記號；漸慢只是近似處理，實際以指揮為準。鍵盤操作：空白鍵播放／暫停，左右方向鍵切換小節。</p>`,
   },
 ];
 
